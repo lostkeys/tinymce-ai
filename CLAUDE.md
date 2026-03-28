@@ -146,6 +146,13 @@ export default (): void => {
 - No classes for data — use interfaces and factory functions
 - Use `Optional` from Katamari instead of null/undefined where appropriate
 - Use `Arr`, `Obj`, `Fun`, `Type`, `Str` from Katamari for collection/utility operations
+- Use `Fun.constant(value)` instead of `() => value` for functions that return a static value (enforced by `@tinymce/prefer-fun` lint rule)
+- Use `Fun.noop` instead of `() => {}` for empty callbacks
+
+### Import Ordering
+- Imports must be ordered: external packages (`@ephox/*`) before project-internal imports (`tinymce/*`), then third-party test libs (`chai`)
+- Separate external and internal import groups with a blank line
+- ESLint enforces this via `import-x/order`
 
 ### Naming
 - PascalCase for types/interfaces, modules
