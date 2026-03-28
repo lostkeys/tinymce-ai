@@ -1,4 +1,4 @@
-import { type AlloyComponent, type AlloySpec, AlloyTriggers, type SketchSpec } from '@ephox/alloy';
+import { type AlloyComponent, type AlloySpec, AlloyTriggers, type SketchSpec, type TieredData } from '@ephox/alloy';
 import { Arr, Fun, Obj, Optional } from '@ephox/katamari';
 import { Dimension } from '@ephox/sugar';
 
@@ -24,6 +24,7 @@ export interface NumberInputSpec {
   onAction: (format: string, focusBack?: boolean) => void;
   updateInputValue: (comp: AlloyComponent) => void;
   getNewValue: (text: string, updateFunction: (value: number, step: number) => number) => string;
+  getMenuItems?: () => { fetch: (comp: AlloyComponent, callback: (tdata: Optional<TieredData>) => void) => void };
 }
 
 const menuTitle = 'Font sizes';
@@ -186,7 +187,9 @@ const convertToUnit = (fontSize: string, targetUnit: string): string => {
   return convertFromPx(fontSize, targetUnit, 1).getOr(fontSize);
 };
 
-const getNumberInputSpec = (editor: Editor): NumberInputSpec => {
+const getNumberInputSpec = (editor: Editor, backstage: UiFactoryBackstage): NumberInputSpec => {
+  const selectSpec = getSpec(editor);
+  const { items, getStyleItems } = createMenuItems(backstage, selectSpec);
   const getRawValue = () => editor.queryCommandValue('FontSize');
   const getDisplayValue = (): string => {
     const raw = getRawValue();
@@ -203,6 +206,9 @@ const getNumberInputSpec = (editor: Editor): NumberInputSpec => {
   return {
     updateInputValue,
     onAction: (format, focusBack) => editor.execCommand('FontSize', false, format, { skip_focus: !focusBack }),
+    getMenuItems: () => ({
+      fetch: items.getFetch(backstage, getStyleItems)
+    }),
     getNewValue: (text, updateFunction) => {
       Dimension.parse(text, [ 'unsupportedLength', 'empty' ]);
 
@@ -225,7 +231,7 @@ const getNumberInputSpec = (editor: Editor): NumberInputSpec => {
 };
 
 const createFontSizeInputButton = (editor: Editor, backstage: UiFactoryBackstage): AlloySpec =>
-  createBespokeNumberInput(editor, backstage, getNumberInputSpec(editor), 'fontsizeinput');
+  createBespokeNumberInput(editor, backstage, getNumberInputSpec(editor, backstage), 'fontsizeinput');
 
 // TODO: Test this!
 const createFontSizeMenu = (editor: Editor, backstage: UiFactoryBackstage): void => {

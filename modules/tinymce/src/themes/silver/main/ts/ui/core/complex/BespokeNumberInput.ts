@@ -1,6 +1,11 @@
-import { AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec, Behaviour, Button, Disabling, Focusing, FocusInsideModes, Input, Keying, Memento, NativeEvents, Representing, SystemEvents, Tooltipping } from '@ephox/alloy';
+import {
+  AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec,
+  Behaviour, Button, Disabling, Focusing, FocusInsideModes, GuiFactory, Highlighting,
+  InlineView, Input, Keying, MaxHeight, Memento, NativeEvents, Representing,
+  SystemEvents, Tooltipping
+} from '@ephox/alloy';
 import { Arr, Cell, Fun, Id, Optional, Type } from '@ephox/katamari';
-import { Focus, SugarElement, Traverse } from '@ephox/sugar';
+import { Attribute, Focus, SugarElement, Traverse } from '@ephox/sugar';
 
 import type Editor from 'tinymce/core/api/Editor';
 import VK from 'tinymce/core/api/util/VK';
@@ -73,6 +78,150 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
     }
   };
 
+  // Dropdown menu setup
+  const hasMenu = spec.getMenuItems !== undefined;
+  const listboxId = Id.generate('fontsizeinput-listbox');
+
+  const inlineViewSpec = hasMenu ? Optional.some(
+    InlineView.sketch({
+      dom: {
+        tag: 'div',
+        classes: [ 'tox-number-input-dropdown' ],
+        attributes: {
+          id: listboxId,
+          role: 'listbox'
+        }
+      },
+      components: [],
+      fireDismissalEventInstead: {},
+      inlineBehaviours: Behaviour.derive([
+        AddEventsBehaviour.config('dropdown-dismiss', [
+          AlloyEvents.run(SystemEvents.dismissRequested(), Fun.noop)
+        ])
+      ]),
+      lazySink: backstage.shared.getSink
+    })
+  ) : Optional.none();
+
+  const inlineView = inlineViewSpec.map((viewSpec) => GuiFactory.build(viewSpec));
+
+  const showDropdown = (inputComp: AlloyComponent) => {
+    if (!hasMenu) {
+      return;
+    }
+
+    inlineView.each((view) => {
+      const getMenuItems = spec.getMenuItems;
+      if (getMenuItems === undefined) {
+        return;
+      }
+      const menuItems = getMenuItems();
+      menuItems.fetch(inputComp, (tieredDataOpt) => {
+        tieredDataOpt.each((tieredData) => {
+          InlineView.showMenuAt(view, {
+            anchor: {
+              type: 'node',
+              node: Optional.some(inputComp.element),
+              root: inputComp.element
+            }
+          }, {
+            data: tieredData,
+            menu: {
+              markers: {
+                item: 'tox-collection__item',
+                selectedItem: 'tox-collection__item--enabled',
+                menu: 'tox-collection--list tox-collection',
+                selectedMenu: 'tox-selected-menu',
+                backgroundMenu: 'tox-collection__group'
+              },
+              fakeFocus: true
+            }
+          });
+
+          // Constrain menu height
+          backstage.shared.getSink().each((sink) => {
+            const sinkEl = sink.element.dom;
+            const availableHeight = sinkEl.getBoundingClientRect().height;
+            const menuEl = view.element;
+            MaxHeight.anchored()(menuEl, availableHeight - 10);
+          });
+        });
+      });
+
+      // Update aria-expanded on the input
+      Attribute.set(inputComp.element, 'aria-expanded', 'true');
+    });
+  };
+
+  const hideDropdown = (inputComp?: AlloyComponent) => {
+    inlineView.each((view) => {
+      if (InlineView.isOpen(view)) {
+        InlineView.hide(view);
+      }
+    });
+    if (inputComp) {
+      Attribute.set(inputComp.element, 'aria-expanded', 'false');
+    } else {
+      currentComp.each((comp) => {
+        Attribute.set(comp.element, 'aria-expanded', 'false');
+      });
+    }
+  };
+
+  const moveHighlightDown = (): boolean => {
+    let moved = false;
+    inlineView.each((view) => {
+      if (InlineView.isOpen(view)) {
+        InlineView.getContent(view).each((tmenu) => {
+          Arr.get(tmenu.components(), 0).each((menu) => {
+            const current = Highlighting.getHighlighted(menu);
+            if (current.isNone()) {
+              Highlighting.highlightFirst(menu);
+              moved = true;
+            } else {
+              // Try moving to next. If at end, stay.
+              const items = Highlighting.getCandidates(menu);
+              const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
+              if (idx < items.length - 1) {
+                Highlighting.highlightAt(menu, idx + 1);
+                moved = true;
+              }
+            }
+          });
+        });
+      }
+    });
+    return moved;
+  };
+
+  const moveHighlightUp = (): Optional<boolean> => {
+    let result: Optional<boolean> = Optional.none();
+    inlineView.each((view) => {
+      if (InlineView.isOpen(view)) {
+        InlineView.getContent(view).each((tmenu) => {
+          Arr.get(tmenu.components(), 0).each((menu) => {
+            const current = Highlighting.getHighlighted(menu);
+            if (current.isNone()) {
+              result = Optional.some(true);
+              return;
+            }
+            const items = Highlighting.getCandidates(menu);
+            const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
+            if (idx <= 0) {
+              // At top of menu — move focus back to input, dehighlight
+              Highlighting.dehighlightAll(menu);
+              result = Optional.none(); // Signal: focus should go back to input
+            } else {
+              Highlighting.highlightAt(menu, idx - 1);
+              result = Optional.some(true);
+            }
+          });
+        });
+      }
+    });
+    return result;
+  };
+
   const makeStepperButton = (action: (focusBack: boolean) => void, title: string, tooltip: string, classes: string[]) => {
     const editorOffCellStepButton = Cell(Fun.noop);
     const translatedTooltip = backstage.shared.providers.translate(tooltip);
@@ -133,6 +282,14 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
   const memMinus = Memento.record(makeStepperButton((focusBack) => decrease(false, focusBack), 'minus', 'Decrease font size', []));
   const memPlus = Memento.record(makeStepperButton((focusBack) => increase(false, focusBack), 'plus', 'Increase font size', []));
 
+  const comboboxAttrs = hasMenu ? {
+    'role': 'combobox',
+    'aria-expanded': 'false',
+    'aria-haspopup': 'listbox',
+    'aria-controls': listboxId,
+    'aria-autocomplete': 'list' as const
+  } : {};
+
   const memInput = Memento.record({
     dom: {
       tag: 'div',
@@ -140,6 +297,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
     },
     components: [
       Input.sketch({
+        inputAttributes: comboboxAttrs,
         inputBehaviours: Behaviour.derive([
           Disabling.config({}),
           AddEventsBehaviour.config(customEvents, [
@@ -150,8 +308,13 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
             AlloyEvents.run<UpdateMenuTextEvent>(updateMenuText, (comp, se) => {
               Representing.setValue(comp, se.event.text);
             }),
+            AlloyEvents.run(NativeEvents.focusin(), (comp) => {
+              showDropdown(comp);
+            }),
             AlloyEvents.run(NativeEvents.focusout(), (comp) => {
               spec.onAction(Representing.getValue(comp));
+              // Delay hiding so click on menu item can process first
+              setTimeout(() => hideDropdown(comp), 200);
             }),
             AlloyEvents.run(NativeEvents.change(), (comp) => {
               spec.onAction(Representing.getValue(comp));
@@ -161,14 +324,27 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
             mode: 'special',
             onEnter: (_comp) => {
               changeValue(Fun.identity, true, true);
+              hideDropdown();
               return Optional.some(true);
             },
-            onEscape: goToParent,
+            onEscape: (comp) => {
+              hideDropdown(comp);
+              return goToParent(comp);
+            },
             onUp: (_comp) => {
+              if (hasMenu) {
+                // moveHighlightUp returns Optional.none() when at top of list,
+                // meaning focus should stay in input (no-op from keyboard perspective)
+                return moveHighlightUp().or(Optional.some(true));
+              }
               increase(true, false);
               return Optional.some(true);
             },
             onDown: (_comp) => {
+              if (hasMenu) {
+                moveHighlightDown();
+                return Optional.some(true);
+              }
               decrease(true, false);
               return Optional.some(true);
             },
@@ -226,6 +402,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
         cycles: false,
         selector: 'button, .tox-input-wrapper',
         onEscape: (wrapperComp) => {
+          hideDropdown();
           if (Focus.hasFocus(wrapperComp.element)) {
             return Optional.none();
           } else {
