@@ -1,7 +1,7 @@
 import {
   AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec,
   Behaviour, Button, Disabling, Focusing, FocusInsideModes, GuiFactory, Highlighting,
-  InlineView, Input, Keying, MaxHeight, Memento, NativeEvents, Representing,
+  InlineView, Input, Keying, Memento, NativeEvents, Representing,
   SystemEvents, Tooltipping
 } from '@ephox/alloy';
 import { Arr, Cell, Fun, Id, Optional, Type } from '@ephox/katamari';
@@ -15,6 +15,7 @@ import * as Options from '../../../api/Options';
 import { renderIconFromPack } from '../../button/ButtonSlices';
 import { onControlAttached, onControlDetached } from '../../controls/Controls';
 import { updateMenuText, type UpdateMenuTextEvent } from '../../dropdown/CommonDropdown';
+import { markers as getMenuMarkers } from '../../menus/menu/MenuParts';
 import { onSetupEvent } from '../ControlUtils';
 
 import type { NumberInputSpec } from './FontSizeBespoke';
@@ -82,6 +83,18 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
   const hasMenu = spec.getMenuItems !== undefined;
   const listboxId = Id.generate('fontsizeinput-listbox');
 
+  // Inject hover styles for the dropdown menu items since Alloy's Highlighting
+  // doesn't track mouseover in InlineView with fakeFocus mode
+  if (hasMenu) {
+    const styleId = 'tox-number-input-dropdown-styles';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = '.tox-number-input-dropdown .tox-collection--list .tox-collection__item:hover { background-color: #006ce7; color: #fff; }';
+      document.head.appendChild(style);
+    }
+  }
+
   const inlineViewSpec = hasMenu ? Optional.some(
     InlineView.sketch({
       dom: {
@@ -104,6 +117,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
   ) : Optional.none();
 
   const inlineView = inlineViewSpec.map((viewSpec) => GuiFactory.build(viewSpec));
+  const dropdownOpen = Cell(false);
 
   const showDropdown = (inputComp: AlloyComponent) => {
     if (!hasMenu) {
@@ -118,42 +132,31 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
       const menuItems = getMenuItems();
       menuItems.fetch(inputComp, (tieredDataOpt) => {
         tieredDataOpt.each((tieredData) => {
+          const anchorRoot = SugarElement.fromDom(document.body);
           InlineView.showMenuAt(view, {
             anchor: {
               type: 'node',
               node: Optional.some(inputComp.element),
-              root: inputComp.element
+              root: anchorRoot
             }
           }, {
             data: tieredData,
             menu: {
-              markers: {
-                item: 'tox-collection__item',
-                selectedItem: 'tox-collection__item--enabled',
-                menu: 'tox-collection--list tox-collection',
-                selectedMenu: 'tox-selected-menu',
-                backgroundMenu: 'tox-collection__group'
-              },
+              markers: getMenuMarkers('normal'),
               fakeFocus: true
             }
-          });
-
-          // Constrain menu height
-          backstage.shared.getSink().each((sink) => {
-            const sinkEl = sink.element.dom;
-            const availableHeight = sinkEl.getBoundingClientRect().height;
-            const menuEl = view.element;
-            MaxHeight.anchored()(menuEl, availableHeight - 10);
           });
         });
       });
 
       // Update aria-expanded on the input
       Attribute.set(inputComp.element, 'aria-expanded', 'true');
+      dropdownOpen.set(true);
     });
   };
 
   const hideDropdown = (inputComp?: AlloyComponent) => {
+    dropdownOpen.set(false);
     inlineView.each((view) => {
       if (InlineView.isOpen(view)) {
         InlineView.hide(view);
