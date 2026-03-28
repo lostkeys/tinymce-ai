@@ -1,6 +1,11 @@
-import { AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec, Behaviour, Button, Disabling, Focusing, FocusInsideModes, Input, Keying, Memento, NativeEvents, Representing, SystemEvents, Tooltipping } from '@ephox/alloy';
+import {
+  AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec, AlloyTriggers,
+  Behaviour, Button, Disabling, Focusing, FocusInsideModes, GuiFactory, Highlighting,
+  InlineView, Input, Keying, Memento, NativeEvents, Representing,
+  SystemEvents, Tooltipping
+} from '@ephox/alloy';
 import { Arr, Cell, Fun, Id, Optional, Type } from '@ephox/katamari';
-import { Focus, SugarElement, Traverse } from '@ephox/sugar';
+import { Attribute, Focus, SugarElement, Traverse } from '@ephox/sugar';
 
 import type Editor from 'tinymce/core/api/Editor';
 import VK from 'tinymce/core/api/util/VK';
@@ -10,6 +15,7 @@ import * as Options from '../../../api/Options';
 import { renderIconFromPack } from '../../button/ButtonSlices';
 import { onControlAttached, onControlDetached } from '../../controls/Controls';
 import { updateMenuText, type UpdateMenuTextEvent } from '../../dropdown/CommonDropdown';
+import { markers as getMenuMarkers } from '../../menus/menu/MenuParts';
 import { onSetupEvent } from '../ControlUtils';
 
 import type { NumberInputSpec } from './FontSizeBespoke';
@@ -17,6 +23,11 @@ import type { NumberInputSpec } from './FontSizeBespoke';
 interface BespokeSelectApi {
   readonly getComponent: () => AlloyComponent;
 }
+
+const getOpenMenu = (view: AlloyComponent): Optional<AlloyComponent> =>
+  InlineView.isOpen(view)
+    ? InlineView.getContent(view).bind((tmenu) => Arr.get(tmenu.components(), 0))
+    : Optional.none();
 
 const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage, spec: NumberInputSpec, btnName?: string): AlloySpec => {
   let currentComp: Optional<AlloyComponent> = Optional.none();
@@ -72,6 +83,119 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
       return Optional.none();
     }
   };
+
+  // Dropdown menu setup
+  const hasMenu = spec.getMenuItems !== undefined;
+  const listboxId = Id.generate('fontsizeinput-listbox');
+
+  const inlineView = hasMenu ? Optional.some(
+    GuiFactory.build(InlineView.sketch({
+      dom: {
+        tag: 'div',
+        classes: [ 'tox-number-input-dropdown' ],
+        attributes: {
+          id: listboxId,
+          role: 'listbox'
+        }
+      },
+      components: [],
+      fireDismissalEventInstead: {},
+      inlineBehaviours: Behaviour.derive([
+        AddEventsBehaviour.config('dropdown-dismiss', [
+          AlloyEvents.run(SystemEvents.dismissRequested(), Fun.noop)
+        ])
+      ]),
+      lazySink: backstage.shared.getSink
+    }))
+  ) : Optional.none();
+
+  const userNavigatedMenu = Cell(false);
+
+  const showDropdown = (inputComp: AlloyComponent) => {
+    inlineView.each((view) => {
+      const getMenuItems = spec.getMenuItems;
+      if (getMenuItems === undefined) {
+        return;
+      }
+      const menuItems = getMenuItems();
+      menuItems.fetch(inputComp, (tieredDataOpt) => {
+        tieredDataOpt.each((tieredData) => {
+          InlineView.showMenuAt(view, {
+            anchor: {
+              type: 'node',
+              node: Optional.some(inputComp.element),
+              root: SugarElement.fromDom(document.body)
+            }
+          }, {
+            data: tieredData,
+            menu: {
+              markers: getMenuMarkers('normal'),
+              fakeFocus: true
+            }
+          });
+        });
+      });
+
+      Attribute.set(inputComp.element, 'aria-expanded', 'true');
+      userNavigatedMenu.set(false);
+    });
+  };
+
+  const hideDropdown = (inputComp?: AlloyComponent) => {
+    inlineView.each((view) => {
+      if (InlineView.isOpen(view)) {
+        InlineView.hide(view);
+      }
+    });
+    const comp = inputComp ? Optional.some(inputComp) : currentComp;
+    comp.each((c) => Attribute.set(c.element, 'aria-expanded', 'false'));
+  };
+
+  const moveHighlightDown = (): boolean =>
+    inlineView.bind((view) =>
+      getOpenMenu(view).bind((menu) => {
+        const current = Highlighting.getHighlighted(menu);
+        if (current.isNone()) {
+          Highlighting.highlightFirst(menu);
+          return Optional.some(true);
+        }
+        const items = Highlighting.getCandidates(menu);
+        const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
+        if (idx < items.length - 1) {
+          Highlighting.highlightAt(menu, idx + 1);
+          return Optional.some(true);
+        }
+        return Optional.none();
+      })
+    ).isSome();
+
+  const moveHighlightUp = (): Optional<boolean> =>
+    inlineView.bind((view) =>
+      getOpenMenu(view).bind((menu) => {
+        const current = Highlighting.getHighlighted(menu);
+        if (current.isNone()) {
+          return Optional.some(true);
+        }
+        const items = Highlighting.getCandidates(menu);
+        const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
+        if (idx <= 0) {
+          Highlighting.dehighlightAll(menu);
+          return Optional.none();
+        }
+        Highlighting.highlightAt(menu, idx - 1);
+        return Optional.some(true);
+      })
+    );
+
+  const executeHighlighted = (): boolean =>
+    inlineView.bind((view) =>
+      getOpenMenu(view).bind((menu) =>
+        Highlighting.getHighlighted(menu).map((item) => {
+          AlloyTriggers.emit(item, SystemEvents.execute());
+          return true;
+        })
+      )
+    ).isSome();
 
   const makeStepperButton = (action: (focusBack: boolean) => void, title: string, tooltip: string, classes: string[]) => {
     const editorOffCellStepButton = Cell(Fun.noop);
@@ -133,6 +257,14 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
   const memMinus = Memento.record(makeStepperButton((focusBack) => decrease(false, focusBack), 'minus', 'Decrease font size', []));
   const memPlus = Memento.record(makeStepperButton((focusBack) => increase(false, focusBack), 'plus', 'Increase font size', []));
 
+  const comboboxAttrs: Record<string, string> = hasMenu ? {
+    'role': 'combobox',
+    'aria-expanded': 'false',
+    'aria-haspopup': 'listbox',
+    'aria-controls': listboxId,
+    'aria-autocomplete': 'list'
+  } : {};
+
   const memInput = Memento.record({
     dom: {
       tag: 'div',
@@ -140,6 +272,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
     },
     components: [
       Input.sketch({
+        inputAttributes: comboboxAttrs,
         inputBehaviours: Behaviour.derive([
           Disabling.config({}),
           AddEventsBehaviour.config(customEvents, [
@@ -150,8 +283,16 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
             AlloyEvents.run<UpdateMenuTextEvent>(updateMenuText, (comp, se) => {
               Representing.setValue(comp, se.event.text);
             }),
-            AlloyEvents.run(NativeEvents.focusout(), (comp) => {
-              spec.onAction(Representing.getValue(comp));
+            AlloyEvents.run(NativeEvents.focusin(), (comp) => {
+              showDropdown(comp);
+            }),
+            AlloyEvents.run(NativeEvents.focusout(), (comp, se) => {
+              const relatedTarget = (se.event.raw as FocusEvent).relatedTarget as HTMLElement | null;
+              const isMovingToDropdown = relatedTarget !== null && relatedTarget.closest('.tox-number-input-dropdown') !== null;
+              if (!isMovingToDropdown) {
+                spec.onAction(Representing.getValue(comp));
+                hideDropdown(comp);
+              }
             }),
             AlloyEvents.run(NativeEvents.change(), (comp) => {
               spec.onAction(Representing.getValue(comp));
@@ -160,15 +301,31 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
           Keying.config({
             mode: 'special',
             onEnter: (_comp) => {
-              changeValue(Fun.identity, true, true);
+              if (hasMenu && userNavigatedMenu.get() && executeHighlighted()) {
+                hideDropdown();
+              } else {
+                changeValue(Fun.identity, true, true);
+                hideDropdown();
+              }
               return Optional.some(true);
             },
-            onEscape: goToParent,
+            onEscape: (comp) => {
+              hideDropdown(comp);
+              return goToParent(comp);
+            },
             onUp: (_comp) => {
+              if (hasMenu) {
+                return moveHighlightUp().or(Optional.some(true));
+              }
               increase(true, false);
               return Optional.some(true);
             },
             onDown: (_comp) => {
+              if (hasMenu) {
+                moveHighlightDown();
+                userNavigatedMenu.set(true);
+                return Optional.some(true);
+              }
               decrease(true, false);
               return Optional.some(true);
             },
@@ -226,6 +383,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
         cycles: false,
         selector: 'button, .tox-input-wrapper',
         onEscape: (wrapperComp) => {
+          hideDropdown();
           if (Focus.hasFocus(wrapperComp.element)) {
             return Optional.none();
           } else {

@@ -199,6 +199,13 @@
     }
   }
 
+  // Hover state for list items in InlineView menus (fakeFocus mode)
+  // where Alloy's Highlighting doesn't track mouseover
+  .tox-collection--list .tox-collection__item:hover:not(.tox-collection__item--state-disabled) {
+    background-color: @collection-list-item-active-background-color;
+    color: @collection-list-item-label-active-text-color;
+  }
+
   .tox-collection--grid .tox-collection__item--enabled:not(.tox-collection__item--state-disabled) {
     background-color: @collection-grid-item-enabled-background-color;
     color: @collection-grid-item-label-enabled-text-color;
