@@ -1,3 +1,5 @@
+import { Fun } from '@ephox/katamari';
+
 import type Editor from 'tinymce/core/api/Editor';
 
 export interface Api {
@@ -5,13 +7,11 @@ export interface Api {
   readonly getVersion: () => string;
 }
 
-const version = '1.0.0';
-
 const get = (editor: Editor): Api => ({
   backspaceDelete: (isForward: boolean) => {
     editor.execCommand('mceListBackspaceDelete', false, isForward);
   },
-  getVersion: () => version
+  getVersion: Fun.constant('1.0.0')
 });
 
 export {
