@@ -24,6 +24,11 @@ interface BespokeSelectApi {
   readonly getComponent: () => AlloyComponent;
 }
 
+const getOpenMenu = (view: AlloyComponent): Optional<AlloyComponent> =>
+  InlineView.isOpen(view)
+    ? InlineView.getContent(view).bind((tmenu) => Arr.get(tmenu.components(), 0))
+    : Optional.none();
+
 const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage, spec: NumberInputSpec, btnName?: string): AlloySpec => {
   let currentComp: Optional<AlloyComponent> = Optional.none();
 
@@ -83,20 +88,8 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
   const hasMenu = spec.getMenuItems !== undefined;
   const listboxId = Id.generate('fontsizeinput-listbox');
 
-  // Inject hover styles for the dropdown menu items since Alloy's Highlighting
-  // doesn't track mouseover in InlineView with fakeFocus mode
-  if (hasMenu) {
-    const styleId = 'tox-number-input-dropdown-styles';
-    if (!document.getElementById(styleId)) {
-      const style = document.createElement('style');
-      style.id = styleId;
-      style.textContent = '.tox-number-input-dropdown .tox-collection--list .tox-collection__item:hover { background-color: #006ce7; color: #fff; }';
-      document.head.appendChild(style);
-    }
-  }
-
-  const inlineViewSpec = hasMenu ? Optional.some(
-    InlineView.sketch({
+  const inlineView = hasMenu ? Optional.some(
+    GuiFactory.build(InlineView.sketch({
       dom: {
         tag: 'div',
         classes: [ 'tox-number-input-dropdown' ],
@@ -113,18 +106,12 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
         ])
       ]),
       lazySink: backstage.shared.getSink
-    })
+    }))
   ) : Optional.none();
 
-  const inlineView = inlineViewSpec.map((viewSpec) => GuiFactory.build(viewSpec));
-  const dropdownOpen = Cell(false);
   const userNavigatedMenu = Cell(false);
 
   const showDropdown = (inputComp: AlloyComponent) => {
-    if (!hasMenu) {
-      return;
-    }
-
     inlineView.each((view) => {
       const getMenuItems = spec.getMenuItems;
       if (getMenuItems === undefined) {
@@ -133,12 +120,11 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
       const menuItems = getMenuItems();
       menuItems.fetch(inputComp, (tieredDataOpt) => {
         tieredDataOpt.each((tieredData) => {
-          const anchorRoot = SugarElement.fromDom(document.body);
           InlineView.showMenuAt(view, {
             anchor: {
               type: 'node',
               node: Optional.some(inputComp.element),
-              root: anchorRoot
+              root: SugarElement.fromDom(document.body)
             }
           }, {
             data: tieredData,
@@ -150,100 +136,66 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
         });
       });
 
-      // Update aria-expanded on the input
       Attribute.set(inputComp.element, 'aria-expanded', 'true');
-      dropdownOpen.set(true);
       userNavigatedMenu.set(false);
     });
   };
 
   const hideDropdown = (inputComp?: AlloyComponent) => {
-    dropdownOpen.set(false);
     inlineView.each((view) => {
       if (InlineView.isOpen(view)) {
         InlineView.hide(view);
       }
     });
-    if (inputComp) {
-      Attribute.set(inputComp.element, 'aria-expanded', 'false');
-    } else {
-      currentComp.each((comp) => {
-        Attribute.set(comp.element, 'aria-expanded', 'false');
-      });
-    }
+    const comp = inputComp ? Optional.some(inputComp) : currentComp;
+    comp.each((c) => Attribute.set(c.element, 'aria-expanded', 'false'));
   };
 
-  const moveHighlightDown = (): boolean => {
-    let moved = false;
-    inlineView.each((view) => {
-      if (InlineView.isOpen(view)) {
-        InlineView.getContent(view).each((tmenu) => {
-          Arr.get(tmenu.components(), 0).each((menu) => {
-            const current = Highlighting.getHighlighted(menu);
-            if (current.isNone()) {
-              Highlighting.highlightFirst(menu);
-              moved = true;
-            } else {
-              // Try moving to next. If at end, stay.
-              const items = Highlighting.getCandidates(menu);
-              const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
-              if (idx < items.length - 1) {
-                Highlighting.highlightAt(menu, idx + 1);
-                moved = true;
-              }
-            }
-          });
-        });
-      }
-    });
-    return moved;
-  };
+  const moveHighlightDown = (): boolean =>
+    inlineView.bind((view) =>
+      getOpenMenu(view).bind((menu) => {
+        const current = Highlighting.getHighlighted(menu);
+        if (current.isNone()) {
+          Highlighting.highlightFirst(menu);
+          return Optional.some(true);
+        }
+        const items = Highlighting.getCandidates(menu);
+        const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
+        if (idx < items.length - 1) {
+          Highlighting.highlightAt(menu, idx + 1);
+          return Optional.some(true);
+        }
+        return Optional.none();
+      })
+    ).isSome();
 
-  const moveHighlightUp = (): Optional<boolean> => {
-    let result: Optional<boolean> = Optional.none();
-    inlineView.each((view) => {
-      if (InlineView.isOpen(view)) {
-        InlineView.getContent(view).each((tmenu) => {
-          Arr.get(tmenu.components(), 0).each((menu) => {
-            const current = Highlighting.getHighlighted(menu);
-            if (current.isNone()) {
-              result = Optional.some(true);
-              return;
-            }
-            const items = Highlighting.getCandidates(menu);
-            const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
-            if (idx <= 0) {
-              // At top of menu — move focus back to input, dehighlight
-              Highlighting.dehighlightAll(menu);
-              result = Optional.none(); // Signal: focus should go back to input
-            } else {
-              Highlighting.highlightAt(menu, idx - 1);
-              result = Optional.some(true);
-            }
-          });
-        });
-      }
-    });
-    return result;
-  };
+  const moveHighlightUp = (): Optional<boolean> =>
+    inlineView.bind((view) =>
+      getOpenMenu(view).bind((menu) => {
+        const current = Highlighting.getHighlighted(menu);
+        if (current.isNone()) {
+          return Optional.some(true);
+        }
+        const items = Highlighting.getCandidates(menu);
+        const idx = current.bind((c) => Arr.findIndex(items, (item) => item.element.dom === c.element.dom)).getOr(-1);
+        if (idx <= 0) {
+          Highlighting.dehighlightAll(menu);
+          return Optional.none();
+        }
+        Highlighting.highlightAt(menu, idx - 1);
+        return Optional.some(true);
+      })
+    );
 
-  const executeHighlighted = (): boolean => {
-    let executed = false;
-    inlineView.each((view) => {
-      if (InlineView.isOpen(view)) {
-        InlineView.getContent(view).each((tmenu) => {
-          Arr.get(tmenu.components(), 0).each((menu) => {
-            Highlighting.getHighlighted(menu).each((item) => {
-              // Trigger the item's execute action via Alloy's system event
-              AlloyTriggers.emit(item, SystemEvents.execute());
-              executed = true;
-            });
-          });
-        });
-      }
-    });
-    return executed;
-  };
+  const executeHighlighted = (): boolean =>
+    inlineView.bind((view) =>
+      getOpenMenu(view).bind((menu) =>
+        Highlighting.getHighlighted(menu).map((item) => {
+          AlloyTriggers.emit(item, SystemEvents.execute());
+          return true;
+        })
+      )
+    ).isSome();
 
   const makeStepperButton = (action: (focusBack: boolean) => void, title: string, tooltip: string, classes: string[]) => {
     const editorOffCellStepButton = Cell(Fun.noop);
@@ -305,12 +257,12 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
   const memMinus = Memento.record(makeStepperButton((focusBack) => decrease(false, focusBack), 'minus', 'Decrease font size', []));
   const memPlus = Memento.record(makeStepperButton((focusBack) => increase(false, focusBack), 'plus', 'Increase font size', []));
 
-  const comboboxAttrs = hasMenu ? {
+  const comboboxAttrs: Record<string, string> = hasMenu ? {
     'role': 'combobox',
     'aria-expanded': 'false',
     'aria-haspopup': 'listbox',
     'aria-controls': listboxId,
-    'aria-autocomplete': 'list' as const
+    'aria-autocomplete': 'list'
   } : {};
 
   const memInput = Memento.record({
@@ -334,10 +286,13 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
             AlloyEvents.run(NativeEvents.focusin(), (comp) => {
               showDropdown(comp);
             }),
-            AlloyEvents.run(NativeEvents.focusout(), (comp) => {
-              spec.onAction(Representing.getValue(comp));
-              // Delay hiding so click on menu item can process first
-              setTimeout(() => hideDropdown(comp), 200);
+            AlloyEvents.run(NativeEvents.focusout(), (comp, se) => {
+              const relatedTarget = (se.event.raw as FocusEvent).relatedTarget as HTMLElement | null;
+              const isMovingToDropdown = relatedTarget !== null && relatedTarget.closest('.tox-number-input-dropdown') !== null;
+              if (!isMovingToDropdown) {
+                spec.onAction(Representing.getValue(comp));
+                hideDropdown(comp);
+              }
             }),
             AlloyEvents.run(NativeEvents.change(), (comp) => {
               spec.onAction(Representing.getValue(comp));
@@ -346,7 +301,6 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
           Keying.config({
             mode: 'special',
             onEnter: (_comp) => {
-              // If user navigated into the menu and a menu item is highlighted, execute it
               if (hasMenu && userNavigatedMenu.get() && executeHighlighted()) {
                 hideDropdown();
               } else {
@@ -361,8 +315,6 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
             },
             onUp: (_comp) => {
               if (hasMenu) {
-                // moveHighlightUp returns Optional.none() when at top of list,
-                // meaning focus should stay in input (no-op from keyboard perspective)
                 return moveHighlightUp().or(Optional.some(true));
               }
               increase(true, false);
