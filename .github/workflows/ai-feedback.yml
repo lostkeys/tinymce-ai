@@ -1,0 +1,79 @@
+name: AI Feedback Loop
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  iterate:
+    if: >
+      contains(github.event.review.body, '@ai-agent') &&
+      github.event.review.state == 'changes_requested' &&
+      startsWith(github.event.pull_request.head.ref, 'ai/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Get review comments
+        id: review
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          REVIEW_BODY="${{ github.event.review.body }}"
+
+          # Get all review comments for this review
+          COMMENTS=$(gh api repos/${{ github.repository }}/pulls/${PR_NUMBER}/comments \
+            --jq '[.[] | select(.pull_request_review_id == ${{ github.event.review.id }}) | .body] | join("\n\n---\n\n")')
+
+          echo "review_body<<EOF" >> $GITHUB_OUTPUT
+          echo "$REVIEW_BODY" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "$COMMENTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Claude Code with feedback
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          ISSUE_NUMBER=$(gh pr view "$PR_NUMBER" --json body -q '.body' | grep -oP 'Closes #\K\d+' || echo "")
+
+          claude -p "You are iterating on PR #${PR_NUMBER} for the TinyMCE editor based on reviewer feedback.
+
+          Review feedback:
+          ${{ steps.review.outputs.review_body }}
+
+          Instructions:
+          1. Read CLAUDE.md for project conventions.
+          2. Address each piece of feedback.
+          3. Make sure the build passes (yarn build) and lint passes (yarn eslint).
+          4. Commit your changes with a message like '#${ISSUE_NUMBER}: Address review feedback'.
+          5. Stay within the original scope of the PR." \
+            --allowedTools "Bash(yarn build:*),Bash(yarn eslint:*),Bash(yarn tsc:*),Bash(yarn test-one:*),Bash(git add:*),Bash(git commit:*)" \
+            --max-turns 30
+
+          git push origin "${{ github.event.pull_request.head.ref }}"
+
+          gh pr comment "$PR_NUMBER" --body "I've addressed the review feedback. Please re-review the changes."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
