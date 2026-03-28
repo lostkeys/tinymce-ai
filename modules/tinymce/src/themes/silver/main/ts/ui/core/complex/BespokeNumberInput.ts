@@ -118,6 +118,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
 
   const inlineView = inlineViewSpec.map((viewSpec) => GuiFactory.build(viewSpec));
   const dropdownOpen = Cell(false);
+  const userNavigatedMenu = Cell(false);
 
   const showDropdown = (inputComp: AlloyComponent) => {
     if (!hasMenu) {
@@ -152,6 +153,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
       // Update aria-expanded on the input
       Attribute.set(inputComp.element, 'aria-expanded', 'true');
       dropdownOpen.set(true);
+      userNavigatedMenu.set(false);
     });
   };
 
@@ -344,8 +346,8 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
           Keying.config({
             mode: 'special',
             onEnter: (_comp) => {
-              // If a menu item is highlighted, execute it; otherwise apply typed value
-              if (hasMenu && executeHighlighted()) {
+              // If user navigated into the menu and a menu item is highlighted, execute it
+              if (hasMenu && userNavigatedMenu.get() && executeHighlighted()) {
                 hideDropdown();
               } else {
                 changeValue(Fun.identity, true, true);
@@ -369,6 +371,7 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
             onDown: (_comp) => {
               if (hasMenu) {
                 moveHighlightDown();
+                userNavigatedMenu.set(true);
                 return Optional.some(true);
               }
               decrease(true, false);
