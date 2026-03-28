@@ -160,6 +160,57 @@ export default (): void => {
 - Test files: `<FeatureName>Test.ts`
 - Test describe blocks: `'browser.tinymce.plugins.<plugin>.<TestName>'`
 
+## Terminology
+
+- **Integrator** — The developer implementing TinyMCE into their application. This is TinyMCE's end user — the person writing `tinymce.init({...})` and configuring options. Issue specs and docs often reference what the "integrator" can configure.
+
+## Browser Verification (Required Before PR)
+
+Before opening a PR, always verify the implementation in an actual browser using the dev server:
+
+1. **Build first:** `yarn dev` (runs oxide, tsc, and grunt — required before the dev server works)
+2. **Start dev server:** `yarn tinymce-dev` (serves at http://localhost:3000)
+3. **Update or create a demo page** for the plugin/feature at `modules/tinymce/src/plugins/<plugin>/demo/` or `modules/tinymce/src/themes/silver/demo/`
+   - `demo/ts/demo/Demo.ts` — TinyMCE init config with the relevant options
+   - `demo/html/demo.html` — HTML page with test content
+4. **Navigate to the demo:** `http://localhost:3000/src/plugins/<plugin>/demo/html/demo.html`
+5. **Verify visually** that the feature works as expected
+6. **Check the browser console** for errors
+7. **Use the API via console** to confirm counts/values match expectations
+
+When using Claude Preview, use `preview_eval` to call `tinymce.activeEditor` APIs and verify behavior programmatically.
+
+**Tell the stakeholder** which demo file they can edit to manually test different configurations (e.g., "You can change the options in `modules/tinymce/src/plugins/wordcount/demo/ts/demo/Demo.ts` and reload the page to test different configurations").
+
+## Documentation Updates (Required in PRs)
+
+When a PR adds or changes user-facing options or APIs, include a **Proposed Documentation** section in the PR description. The agent cannot modify the docs site directly, so instead:
+
+1. **Identify which docs page** would need updating — reference the URL from https://www.tiny.cloud/docs/tinymce/latest/
+2. **Write proposed additions** in the tone and style of the existing docs (declarative, technically precise, with code examples)
+3. **Include the section in the PR body** under a `## Proposed Documentation` heading with:
+   - The target page URL
+   - The proposed new/updated content (options with Type/Default/Description/Example, API methods with signatures and descriptions)
+   - Any new example code blocks matching the docs style
+
+## Edge Case Investigation (Required Before PR)
+
+After implementation and happy-path tests, deliberately try to break the feature:
+
+- Weird inputs (empty strings, huge content, nested elements, malformed HTML)
+- Boundary conditions (config values that match everything, match nothing, match the editor root)
+- Interaction with other plugins
+- Rapid state changes
+
+For each issue found, classify and document in the PR description:
+
+```
+## Edge Cases Investigated
+- [ ] Empty content → ✅ returns expected default
+- [ ] Config matches no elements → ✅ behaves as if unconfigured
+- [ ] Extreme config value → ⚠️ edge case, documented (unlikely scenario)
+```
+
 ## Do Not Rules
 
 These are guardrails for the AI agent:
@@ -181,3 +232,4 @@ These are guardrails for the AI agent:
 - Commit messages: Start with the JIRA/issue reference, e.g., `#42: Add getVersion() to Lists plugin`
 - PRs must pass CI (build, lint, tests) before review
 - Keep PRs focused on a single issue — don't bundle unrelated changes
+- **Always branch from a clean `main`** — stash or commit local changes before creating a new branch to avoid leaking unrelated changes into the PR
