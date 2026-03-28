@@ -2,6 +2,8 @@ import type Editor from 'tinymce/core/api/Editor';
 
 import { countCharacters, countCharactersWithoutSpaces, type Counter, countWords } from '../core/Count';
 
+import { getExcludeSelector } from './Options';
+
 export type CountGetter = () => number;
 
 interface CountGetters {
@@ -17,10 +19,10 @@ export interface WordCountApi {
 }
 
 const createBodyCounter = (editor: Editor, count: Counter): CountGetter => (): number =>
-  count(editor.getBody(), editor.schema);
+  count(editor.getBody(), editor.schema, getExcludeSelector(editor));
 
 const createSelectionCounter = (editor: Editor, count: Counter): CountGetter => (): number =>
-  count(editor.selection.getRng().cloneContents(), editor.schema);
+  count(editor.selection.getRng().cloneContents(), editor.schema, getExcludeSelector(editor));
 
 const createBodyWordCounter = (editor: Editor): CountGetter =>
   createBodyCounter(editor, countWords);

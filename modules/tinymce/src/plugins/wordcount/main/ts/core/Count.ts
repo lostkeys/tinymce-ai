@@ -5,7 +5,7 @@ import type Schema from 'tinymce/core/api/html/Schema';
 
 import { getText } from './GetText';
 
-export type Counter = (node: Node, schema: Schema) => number;
+export type Counter = (node: Node, schema: Schema, excludeSelector?: string) => number;
 
 const removeZwsp = (text: string) =>
   text.replace(/\u200B/g, '');
@@ -13,21 +13,21 @@ const removeZwsp = (text: string) =>
 const strLen = (str: string): number =>
   str.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '_').length;
 
-const countWords: Counter = (node: Node, schema: Schema): number => {
+const countWords: Counter = (node: Node, schema: Schema, excludeSelector: string = ''): number => {
   // TODO - TINY-9708: See if TINY-7484 fix can be replaced by adding \u200B to the "format" character class as per Unicode standard
   // TINY-7484: The grapheme word boundary logic used by Polaris states a ZWSP (\u200B) should be treated as
   // a word boundary, however word counting normally does not consider it as anything so we strip it out.
-  const text = removeZwsp(getText(node, schema).join('\n'));
+  const text = removeZwsp(getText(node, schema, excludeSelector).join('\n'));
   return Words.getWords(text.split(''), Fun.identity).length;
 };
 
-const countCharacters: Counter = (node: Node, schema: Schema): number => {
-  const text = getText(node, schema).join('');
+const countCharacters: Counter = (node: Node, schema: Schema, excludeSelector: string = ''): number => {
+  const text = getText(node, schema, excludeSelector).join('');
   return strLen(text);
 };
 
-const countCharactersWithoutSpaces: Counter = (node: Node, schema: Schema): number => {
-  const text = getText(node, schema).join('').replace(/\s/g, '');
+const countCharactersWithoutSpaces: Counter = (node: Node, schema: Schema, excludeSelector: string = ''): number => {
+  const text = getText(node, schema, excludeSelector).join('').replace(/\s/g, '');
   return strLen(text);
 };
 
