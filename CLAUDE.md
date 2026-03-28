@@ -182,6 +182,54 @@ When using Claude Preview, use `preview_eval` to call `tinymce.activeEditor` API
 
 **Tell the stakeholder** which demo file they can edit to manually test different configurations (e.g., "You can change the options in `modules/tinymce/src/plugins/wordcount/demo/ts/demo/Demo.ts` and reload the page to test different configurations").
 
+## Testing Limitations — What the Agent Cannot Verify
+
+Claude Preview can verify rendering, click behavior, and API return values, but **cannot test keyboard navigation** through Alloy's event system. `dispatchEvent` in the browser does not trigger Alloy's simulated event handlers, so keyboard flows (Arrow keys, Enter, Escape through menus) are a blind spot.
+
+**Before opening a PR, include a "Manual Testing Required" section** that tells the stakeholder exactly what to test that couldn't be verified programmatically:
+
+```
+## Manual Testing Required
+- [ ] Down arrow from input navigates into dropdown menu
+- [ ] Enter on highlighted menu item applies the font size
+- [ ] Escape closes dropdown and returns focus to input
+- [ ] Hover over menu items shows blue highlight
+```
+
+This prevents the PM from discovering keyboard/mouse interaction bugs that the agent should have flagged as untested.
+
+## Self-Review (Required Before PR)
+
+Before opening a PR, run a self-review of the full diff (`git diff main`). Check for:
+
+- **Code style**: mutable `let` variables where `Optional` chaining would work, redundant guards, unused imports/variables
+- **Hardcoded values**: colors, sizes, or strings that should come from theme variables or constants
+- **Anti-patterns for this codebase**: injected `<style>` tags (use Oxide LESS), `setTimeout` for timing issues (use event-based solutions), `any` types
+- **Dead code**: cells/state that is set but never read, functions defined but never called
+- **Test coverage gaps**: is there a test for typing a custom value? For the empty state? For interaction between this feature and other toolbar items?
+
+Document findings in a `## Self-Review` section on the PR. Fix all issues before requesting human review — the PM's time should be spent on UX and product decisions, not code quality catches.
+
+## Framework vs Workaround Decision Guide
+
+When a feature requires behavior not directly supported by an internal library (Alloy, Katamari, Sugar), follow this decision process:
+
+1. **Check if the same pattern exists elsewhere in the codebase.** If another feature uses the same workaround (e.g., the autocompleter uses `InlineView` with `fakeFocus`), the workaround is an established pattern — use it.
+
+2. **If no precedent exists, investigate the framework internals** before deciding. Read the relevant source code and document what you find. This takes time but prevents uninformed decisions.
+
+3. **Prefer workarounds when:**
+   - The framework component's core behavior conflicts with the requirement (e.g., `AlloyDropdown` is fundamentally click-to-toggle, but you need focus-to-open)
+   - The workaround matches an existing pattern in the codebase
+   - The scope of framework changes would affect other consumers of that component
+
+4. **Prefer framework changes when:**
+   - The issue spec explicitly authorizes it
+   - The workaround would require hacks that break skin/theme compatibility (hardcoded colors, injected styles)
+   - Multiple features would benefit from the new capability
+
+5. **Always document the decision** on the PR — what was investigated, why the chosen approach was selected, and what the alternative would look like. This saves future developers from re-investigating.
+
 ## Documentation Updates (Required in PRs)
 
 When a PR adds or changes user-facing options or APIs, include a **Proposed Documentation** section in the PR description. The agent cannot modify the docs site directly, so instead:
