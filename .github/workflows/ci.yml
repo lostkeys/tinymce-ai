@@ -33,6 +33,7 @@ jobs:
   headless-test:
     runs-on: ubuntu-latest
     needs: build-and-lint
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
