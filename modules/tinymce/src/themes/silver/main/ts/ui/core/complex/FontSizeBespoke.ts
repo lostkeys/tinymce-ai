@@ -57,14 +57,30 @@ const round = (number: number, precision: number) => {
   return Math.round(number * factor) / factor;
 };
 
-const toPt = (fontSize: string, precision?: number): string => {
-  if (/[0-9.]+px$/.test(fontSize)) {
-    // Round to the nearest 0.5
-    return round(parseInt(fontSize, 10) * 72 / 96, precision || 0) + 'pt';
-  } else {
-    return Obj.get(keywordFontSizes, fontSize).getOr(fontSize);
-  }
+// Conversion factors from px to other units (assuming 96 DPI)
+const pxConversionFactors: Record<string, number> = {
+  px: 1,
+  pt: 72 / 96,
+  pc: 6 / 96,
+  in: 1 / 96,
+  cm: 2.54 / 96,
+  mm: 25.4 / 96
 };
+
+const convertFromPx = (fontSize: string, targetUnit: string, precision?: number): Optional<string> => {
+  if (/[0-9.]+px$/.test(fontSize)) {
+    const factor = pxConversionFactors[targetUnit];
+    if (factor !== undefined) {
+      return Optional.some(round(parseFloat(fontSize) * factor, precision ?? 0) + targetUnit);
+    }
+  }
+  return Optional.none();
+};
+
+const toPt = (fontSize: string, precision?: number): string =>
+  convertFromPx(fontSize, 'pt', precision).getOrThunk(() =>
+    Obj.get(keywordFontSizes, fontSize).getOr(fontSize)
+  );
 
 const toLegacy = (fontSize: string): string => Obj.get(legacyFontSizes, fontSize).getOr('');
 
@@ -150,10 +166,38 @@ const getConfigFromUnit = (unit: string): Config => {
 const defaultValue = 16;
 const isValidValue = (value: number): boolean => value >= 0;
 
+const convertToUnit = (fontSize: string, targetUnit: string): string => {
+  // If already in the target unit, return as-is
+  if (fontSize.endsWith(targetUnit)) {
+    return fontSize;
+  }
+  // Try keyword conversion first
+  const fromKeyword = Obj.get(keywordFontSizes, fontSize);
+  if (fromKeyword.isSome()) {
+    const ptValue = fromKeyword.getOr(fontSize);
+    if (targetUnit === 'pt') {
+      return ptValue;
+    }
+    // Convert keyword's pt value to px first, then to target
+    const pxValue = parseFloat(ptValue) * 96 / 72;
+    return convertFromPx(pxValue + 'px', targetUnit, 1).getOr(fontSize);
+  }
+  // Convert from px to target unit
+  return convertFromPx(fontSize, targetUnit, 1).getOr(fontSize);
+};
+
 const getNumberInputSpec = (editor: Editor): NumberInputSpec => {
-  const getCurrentValue = () => editor.queryCommandValue('FontSize');
+  const getRawValue = () => editor.queryCommandValue('FontSize');
+  const getDisplayValue = (): string => {
+    const raw = getRawValue();
+    if (!raw) {
+      return raw;
+    }
+    const defaultUnit = Options.getFontSizeInputDefaultUnit(editor);
+    return convertToUnit(raw, defaultUnit);
+  };
   const updateInputValue = (comp: AlloyComponent) => AlloyTriggers.emitWith(comp, updateMenuText, {
-    text: getCurrentValue()
+    text: getDisplayValue()
   });
 
   return {
@@ -162,7 +206,7 @@ const getNumberInputSpec = (editor: Editor): NumberInputSpec => {
     getNewValue: (text, updateFunction) => {
       Dimension.parse(text, [ 'unsupportedLength', 'empty' ]);
 
-      const currentValue = getCurrentValue();
+      const currentValue = getDisplayValue();
       const parsedText = Dimension.parse(text, [ 'unsupportedLength', 'empty' ]).or(
         Dimension.parse(currentValue, [ 'unsupportedLength', 'empty' ])
       );
