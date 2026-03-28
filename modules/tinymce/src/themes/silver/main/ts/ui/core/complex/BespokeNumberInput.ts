@@ -1,5 +1,5 @@
 import {
-  AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec,
+  AddEventsBehaviour, type AlloyComponent, AlloyEvents, type AlloySpec, AlloyTriggers,
   Behaviour, Button, Disabling, Focusing, FocusInsideModes, GuiFactory, Highlighting,
   InlineView, Input, Keying, Memento, NativeEvents, Representing,
   SystemEvents, Tooltipping
@@ -225,6 +225,24 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
     return result;
   };
 
+  const executeHighlighted = (): boolean => {
+    let executed = false;
+    inlineView.each((view) => {
+      if (InlineView.isOpen(view)) {
+        InlineView.getContent(view).each((tmenu) => {
+          Arr.get(tmenu.components(), 0).each((menu) => {
+            Highlighting.getHighlighted(menu).each((item) => {
+              // Trigger the item's execute action via Alloy's system event
+              AlloyTriggers.emit(item, SystemEvents.execute());
+              executed = true;
+            });
+          });
+        });
+      }
+    });
+    return executed;
+  };
+
   const makeStepperButton = (action: (focusBack: boolean) => void, title: string, tooltip: string, classes: string[]) => {
     const editorOffCellStepButton = Cell(Fun.noop);
     const translatedTooltip = backstage.shared.providers.translate(tooltip);
@@ -326,8 +344,13 @@ const createBespokeNumberInput = (editor: Editor, backstage: UiFactoryBackstage,
           Keying.config({
             mode: 'special',
             onEnter: (_comp) => {
-              changeValue(Fun.identity, true, true);
-              hideDropdown();
+              // If a menu item is highlighted, execute it; otherwise apply typed value
+              if (hasMenu && executeHighlighted()) {
+                hideDropdown();
+              } else {
+                changeValue(Fun.identity, true, true);
+                hideDropdown();
+              }
               return Optional.some(true);
             },
             onEscape: (comp) => {
