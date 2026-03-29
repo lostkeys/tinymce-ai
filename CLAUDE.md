@@ -274,6 +274,20 @@ These are guardrails for the AI agent:
 9. **Don't use `any` type** — find the correct type or use `unknown` with narrowing
 10. **Don't introduce third-party libraries** — use the internal `@ephox/` packages
 
+## TinyMCE Implementation Patterns
+
+These are reusable lessons learned from implementing features in TinyMCE:
+
+1. **Use TinyMCE's built-in utilities before writing custom DOM checks** — `editor.dom.isEmpty()` handles bogus `<br>`, format carets, empty formatting spans, and zero-width characters. Check if a utility exists in `DOMUtils`, `NodeType`, `NewLineUtils`, etc. before writing custom logic.
+
+2. **`classList.remove()` leaves empty `class=""` attributes** — when removing the last class from an element, also call `removeAttribute('class')`. An empty `class=""` is semantically different from no class attribute and can interfere with TinyMCE's content cleanup.
+
+3. **Account for `editable_root: false`** — any feature that traverses the DOM tree must use `getEditableRoot()` from `NewLineUtils` instead of assuming `body` is the root. Non-editable root mode changes the DOM hierarchy fundamentally.
+
+4. **Custom classes on content elements leak into `getContent()`** — `data-mce-*` attributes are auto-stripped by the serializer, but classes are not (only `mce-item-*` is removed). Any class added to content elements needs a serializer filter via `editor.serializer.addAttributeFilter('class', ...)`.
+
+5. **When modifying a framework utility vs working around it** — if the workaround follows the same pattern used elsewhere in the codebase (e.g. `InlineView` for dropdown menus, `addAttributeFilter` for serializer cleanup), it's probably fine. Only modify framework code (Alloy, Katamari, Sugar) when explicitly authorized in the issue spec.
+
 ## PR Conventions
 
 - Branch naming: `ai/<issue-number>-<short-description>`
