@@ -196,6 +196,35 @@ describe('browser.tinymce.core.content.PlaceholderNewlineTest', () => {
     });
   });
 
+  context('With editable_root: false (non-editable root)', () => {
+    const hook = TinyHooks.bddSetupLight<Editor>({
+      placeholder_newline: defaultText,
+      editable_root: false,
+      base_url: '/project/tinymce/js/tinymce'
+    }, [], true);
+
+    it('should show placeholder inside editable region', () => {
+      const editor = hook.editor();
+      editor.setContent('<h1>Title</h1><div class="mceEditable"><p><br data-mce-bogus="1"></p></div>', { format: 'raw' });
+      const editableDiv = editor.getBody().querySelector('.mceEditable');
+      const emptyP = editableDiv?.querySelector('p');
+      if (emptyP) {
+        TinySelections.setCursor(editor, [ 1, 0 ], 0);
+        editor.nodeChanged();
+        assertPlaceholderShown(editor);
+      }
+    });
+
+    it('should not show placeholder on non-editable content', () => {
+      const editor = hook.editor();
+      editor.setContent('<p><br data-mce-bogus="1"></p>', { format: 'raw' });
+      TinySelections.setCursor(editor, [ 0 ], 0);
+      editor.nodeChanged();
+      // The p is in the non-editable root, so no placeholder
+      assertPlaceholderHidden(editor);
+    });
+  });
+
   context('With custom placeholder text', () => {
     const customText = 'Press / to insert a block';
     const hook = TinyHooks.bddSetupLight<Editor>({

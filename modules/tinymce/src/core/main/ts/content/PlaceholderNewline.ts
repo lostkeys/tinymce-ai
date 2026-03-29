@@ -2,6 +2,7 @@ import { Strings } from '@ephox/katamari';
 
 import type Editor from '../api/Editor';
 import * as Options from '../api/Options';
+import { getEditableRoot } from '../newline/NewLineUtils';
 
 import { isVisuallyEmpty } from './Placeholder';
 
@@ -49,6 +50,7 @@ const isUnformattedBlock = (el: Element, forcedRootBlock: string): boolean => {
 };
 
 const getCaretBlock = (editor: Editor): Element | null => {
+  const dom = editor.dom;
   const body = editor.getBody();
   const forcedRootBlock = Options.getForcedRootBlock(editor);
   const selection = editor.selection;
@@ -62,17 +64,20 @@ const getCaretBlock = (editor: Editor): Element | null => {
     return null;
   }
 
-  // Walk up to find the direct child of body (the block-level element)
+  // Find the editable root — either body or a contenteditable="true" region
+  // when editable_root: false is configured
+  const root = getEditableRoot(dom, node) ?? body;
+
+  // Walk up to find the direct child of the editable root (the block-level element)
   let block: Element | null = null;
-  if (node === body) {
-    // Caret is directly in body — check first child
-    const firstChild = body.firstElementChild;
+  if (node === root) {
+    const firstChild = root.firstElementChild;
     if (firstChild) {
       block = firstChild;
     }
   } else {
     let current: Node | null = node;
-    while (current && current.parentNode !== body) {
+    while (current && current.parentNode !== root) {
       current = current.parentNode;
     }
     if (current && current.nodeType === 1) {
