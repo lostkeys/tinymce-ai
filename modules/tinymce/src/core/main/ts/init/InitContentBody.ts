@@ -21,6 +21,7 @@ import Tools from '../api/util/Tools';
 import * as CaretFinder from '../caret/CaretFinder';
 import type CaretPosition from '../caret/CaretPosition';
 import * as Placeholder from '../content/Placeholder';
+import * as PlaceholderNewline from '../content/PlaceholderNewline';
 import * as DeleteCommands from '../delete/DeleteCommands';
 import * as NodeType from '../dom/NodeType';
 import * as TouchEvents from '../events/TouchEvents';
@@ -487,6 +488,7 @@ const contentBodyLoaded = (editor: Editor): void => {
   DeleteCommands.setup(editor, caret);
   ForceBlocks.setup(editor);
   Placeholder.setup(editor);
+  PlaceholderNewline.setup(editor);
   Paste.setup(editor, caret);
 
   const setupRtcThunk = Rtc.setup(editor);

@@ -71,6 +71,7 @@ export default (): void => {
     selector: 'textarea',
     license_key: 'gpl',
     // rtl_ui: true,
+    // directionality: 'rtl',
     link_list: [
       { title: 'My page 1', value: 'http://www.tinymce.com' },
       { title: 'My page 2', value: 'http://www.moxiecode.com' }
@@ -85,6 +86,7 @@ export default (): void => {
     ],
     importcss_append: true,
     // init_content_sync: true,
+    placeholder_newline: 'Type \'/\' for commands',
     height: 400,
     image_advtab: true,
     file_picker_callback: (callback, _value, meta) => {
