@@ -980,6 +980,11 @@ const register = (editor: Editor): void => {
     });
   });
 
+  registerOption('placeholder_newline', {
+    processor: 'string',
+    default: ''
+  });
+
   registerOption('lists_indent_on_tab', {
     processor: 'boolean',
     default: true
@@ -1038,6 +1043,7 @@ const getInlineBoundarySelector = option('inline_boundaries_selector');
 const getObjectResizing = option('object_resizing');
 const getResizeImgProportional = option('resize_img_proportional');
 const getPlaceholder = option('placeholder');
+const getPlaceholderNewline = option('placeholder_newline');
 const getEventRoot = option('event_root');
 const getServiceMessage = option('service_message');
 const getTheme = option('theme');
@@ -1162,6 +1168,7 @@ export {
   getObjectResizing,
   getResizeImgProportional,
   getPlaceholder,
+  getPlaceholderNewline,
   getEventRoot,
   getServiceMessage,
   getTheme,

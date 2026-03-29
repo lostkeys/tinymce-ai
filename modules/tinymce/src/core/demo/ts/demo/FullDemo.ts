@@ -85,6 +85,7 @@ export default (): void => {
     ],
     importcss_append: true,
     // init_content_sync: true,
+    placeholder_newline: 'Type \'/\' for commands',
     height: 400,
     image_advtab: true,
     file_picker_callback: (callback, _value, meta) => {
