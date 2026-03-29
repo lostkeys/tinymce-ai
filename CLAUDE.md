@@ -284,11 +284,9 @@ These are reusable lessons learned from implementing features in TinyMCE:
 
 3. **Account for `editable_root: false`** — any feature that traverses the DOM tree must use `getEditableRoot()` from `NewLineUtils` instead of assuming `body` is the root. Non-editable root mode changes the DOM hierarchy fundamentally.
 
-4. **CSS `position: absolute` on `::before` is required for content placeholders** — without it, pseudo-element text participates in flow and moves the caret. This requires `position: relative` on the parent, which is inconsistent on `<td>` in Firefox. Document known CSS limitations rather than trying to work around them prematurely.
+4. **Custom classes on content elements leak into `getContent()`** — `data-mce-*` attributes are auto-stripped by the serializer, but classes are not (only `mce-item-*` is removed). Any class added to content elements needs a serializer filter via `editor.serializer.addAttributeFilter('class', ...)`.
 
-5. **Custom classes on content elements leak into `getContent()`** — `data-mce-*` attributes are auto-stripped by the serializer, but classes are not (only `mce-item-*` is removed). Any class added to content elements needs a serializer filter via `editor.serializer.addAttributeFilter('class', ...)`.
-
-6. **When modifying a framework utility vs working around it** — if the workaround follows the same pattern used elsewhere in the codebase (e.g. `InlineView` for dropdown menus, `addAttributeFilter` for serializer cleanup), it's probably fine. Only modify framework code (Alloy, Katamari, Sugar) when explicitly authorized in the issue spec.
+5. **When modifying a framework utility vs working around it** — if the workaround follows the same pattern used elsewhere in the codebase (e.g. `InlineView` for dropdown menus, `addAttributeFilter` for serializer cleanup), it's probably fine. Only modify framework code (Alloy, Katamari, Sugar) when explicitly authorized in the issue spec.
 
 ## PR Conventions
 
