@@ -16,6 +16,10 @@ const clearPlaceholder = (editor: Editor): void => {
     if (current) {
       current.classList.remove(placeholderNewlineClass);
       current.removeAttribute(placeholderNewlineAttr);
+      // Remove empty class attribute to avoid interfering with TinyMCE's content cleanup
+      if (current.classList.length === 0) {
+        current.removeAttribute('class');
+      }
     }
   }
 };
