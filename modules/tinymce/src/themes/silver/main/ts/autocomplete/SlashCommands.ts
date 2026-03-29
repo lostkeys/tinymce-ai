@@ -1,7 +1,10 @@
 import { Arr, Fun, Strings, Type } from '@ephox/katamari';
 
-import type Editor from '../api/Editor';
-import * as Options from '../api/Options';
+import type Editor from 'tinymce/core/api/Editor';
+import * as CoreOptions from 'tinymce/core/api/Options';
+
+import * as SilverOptions from '../api/Options';
+import { defaultInsertMenuItems } from '../ui/menus/menubar/DefaultMenus';
 
 interface SlashCommandItem {
   readonly text: string;
@@ -112,37 +115,14 @@ const parseCommandString = (editor: Editor, commandStr: string): SlashCommandGro
   return groups;
 };
 
-// Menu items to exclude from auto mode — actions that don't make sense
-// as slash commands (editing, navigation, settings, meta, inline formatting,
-// table operations that only work inside a table context)
-const autoExcludeItems = new Set([
-  // Editing / clipboard
-  'undo', 'redo', 'cut', 'copy', 'paste', 'pastetext', 'selectall',
-  // Meta / settings / tools
-  'searchreplace', 'print', 'preview', 'fullscreen', 'code', 'help',
-  'newdocument', 'restoredraft', 'wordcount', 'a11ycheck',
-  'visualaid', 'visualchars', 'visualblocks',
-  'spellchecker', 'spellcheckerlanguage',
-  // Inline formatting (not block-level actions)
-  'bold', 'italic', 'underline', 'strikethrough', 'superscript', 'subscript',
-  'codeformat', 'removeformat',
-  'forecolor', 'backcolor', 'language',
-  'styles', 'blocks', 'fontfamily', 'fontsize', 'align', 'lineheight',
-  // Link operations (context-dependent)
-  'openlink', 'unlink',
-  // List properties (context-dependent, not list creation)
-  'listprops',
-  // Table destruction (context-dependent)
-  'deletetable',
-  // Low-value insert items
-  'nonbreaking'
-]);
-
-// Prefix patterns to exclude — table operations that only work inside a table
-const autoExcludePrefixes = [ 'table' ];
-
-// Table items to explicitly INCLUDE despite the prefix exclusion
-const autoIncludeOverrides = new Set([ 'inserttabledialog' ]);
+const getInsertMenuItems = (editor: Editor): string => {
+  // Use integrator's custom Insert menu if configured, otherwise use the default
+  const menus = SilverOptions.getMenus(editor);
+  if (menus.insert?.items) {
+    return menus.insert.items;
+  }
+  return defaultInsertMenuItems;
+};
 
 const getAutoGroups = (editor: Editor): SlashCommandGroup[] => {
   const groups: SlashCommandGroup[] = [];
@@ -164,34 +144,22 @@ const getAutoGroups = (editor: Editor): SlashCommandGroup[] => {
     groups.push({ items: blockFormats });
   }
 
-  // Group 2: Insert menu items — scrape all registered menu items with onAction
-  const allItems = editor.ui.registry.getAll();
-  const insertItems: SlashCommandItem[] = [];
-  for (const [ name, menuItem ] of Object.entries(allItems.menuItems)) {
-    const isExcludedByPrefix = !autoIncludeOverrides.has(name) &&
-      Arr.exists(autoExcludePrefixes, (prefix) => name.startsWith(prefix));
-    if (addedNames.has(name) || autoExcludeItems.has(name) || isExcludedByPrefix) {
-      continue;
+  // Group 2: Insert menu items — use the Insert menu config as the source of truth
+  // This respects the integrator's customization and includes premium plugins
+  const insertMenuStr = getInsertMenuItems(editor);
+  const insertGroups = parseCommandString(editor, insertMenuStr);
+  for (const group of insertGroups) {
+    const filteredItems = Arr.filter(group.items, (item) => !addedNames.has(item.text));
+    if (filteredItems.length > 0) {
+      groups.push({ items: filteredItems });
     }
-    if (Type.isFunction((menuItem as any).onAction)) {
-      const text = (menuItem as any).text ?? name;
-      const icon = (menuItem as any).icon ?? knownIcons[name];
-      insertItems.push({
-        text,
-        icon,
-        onAction: () => (menuItem as any).onAction({ isEnabled: Fun.always, setEnabled: Fun.noop })
-      });
-      addedNames.add(name);
-    }
-  }
-  if (insertItems.length > 0) {
-    groups.push({ items: insertItems });
   }
 
-  // Group 3: Toolbar-only buttons not already covered (e.g. bullist, numlist)
+  // Group 3: Toolbar-only buttons not in menu items (e.g. bullist, numlist)
+  const allItems = editor.ui.registry.getAll();
   const buttonItems: SlashCommandItem[] = [];
   for (const [ name, button ] of Object.entries(allItems.buttons)) {
-    if (addedNames.has(name) || autoExcludeItems.has(name)) {
+    if (addedNames.has(name)) {
       continue;
     }
     if (Type.isFunction((button as any).onAction) && knownText[name]) {
@@ -240,7 +208,7 @@ const buildAutocompleterItems = (groups: SlashCommandGroup[], pattern: string) =
 };
 
 const setup = (editor: Editor): void => {
-  const commandStr = Options.getPlaceholderNewlineCommands(editor);
+  const commandStr = CoreOptions.getPlaceholderNewlineCommands(editor);
 
   if (Strings.isEmpty(commandStr)) {
     return;
