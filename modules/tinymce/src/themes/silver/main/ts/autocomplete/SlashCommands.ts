@@ -1,9 +1,8 @@
 import { Arr, Fun, Strings, Type } from '@ephox/katamari';
 
 import type Editor from 'tinymce/core/api/Editor';
-import * as CoreOptions from 'tinymce/core/api/Options';
 
-import * as SilverOptions from '../api/Options';
+import * as Options from '../api/Options';
 import { defaultInsertMenuItems } from '../ui/menus/menubar/DefaultMenus';
 
 interface SlashCommandItem {
@@ -117,7 +116,7 @@ const parseCommandString = (editor: Editor, commandStr: string): SlashCommandGro
 
 const getInsertMenuItems = (editor: Editor): string => {
   // Use integrator's custom Insert menu if configured, otherwise use the default
-  const menus = SilverOptions.getMenus(editor);
+  const menus = Options.getMenus(editor);
   if (menus.insert?.items) {
     return menus.insert.items;
   }
@@ -208,7 +207,7 @@ const buildAutocompleterItems = (groups: SlashCommandGroup[], pattern: string) =
 };
 
 const setup = (editor: Editor): void => {
-  const commandStr = CoreOptions.getPlaceholderNewlineCommands(editor);
+  const commandStr = Options.getPlaceholderNewlineCommands(editor);
 
   if (Strings.isEmpty(commandStr)) {
     return;

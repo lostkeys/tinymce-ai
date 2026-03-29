@@ -437,6 +437,9 @@ const isStickyToolbar = (editor: Editor): boolean => {
 const isSplitUiMode = (editor: Editor): boolean =>
   !useFixedContainer(editor) && editor.options.get('ui_mode') === 'split';
 
+const getPlaceholderNewlineCommands = (editor: Editor): string =>
+  editor.options.get('placeholder_newline_commands');
+
 const getMenus = (editor: Editor): Record<string, { title: string; items: string }> => {
   const menu = editor.options.get('menu');
   return Obj.map(menu, (menu) => ({ ...menu, items: menu.items }));
@@ -479,6 +482,7 @@ export {
   isToolbarLocationBottom,
   getToolbarGroups,
   getMenus,
+  getPlaceholderNewlineCommands,
   getMenubar,
   getToolbar,
   getFilePickerCallback,
