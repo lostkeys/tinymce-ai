@@ -22,6 +22,7 @@ import * as CaretFinder from '../caret/CaretFinder';
 import type CaretPosition from '../caret/CaretPosition';
 import * as Placeholder from '../content/Placeholder';
 import * as PlaceholderNewline from '../content/PlaceholderNewline';
+import * as SlashCommands from '../content/SlashCommands';
 import * as DeleteCommands from '../delete/DeleteCommands';
 import * as NodeType from '../dom/NodeType';
 import * as TouchEvents from '../events/TouchEvents';
@@ -489,6 +490,7 @@ const contentBodyLoaded = (editor: Editor): void => {
   ForceBlocks.setup(editor);
   Placeholder.setup(editor);
   PlaceholderNewline.setup(editor);
+  SlashCommands.setup(editor);
   Paste.setup(editor, caret);
 
   const setupRtcThunk = Rtc.setup(editor);
