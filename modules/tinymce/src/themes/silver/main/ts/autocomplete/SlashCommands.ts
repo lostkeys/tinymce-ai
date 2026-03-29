@@ -166,11 +166,25 @@ const getAutoGroups = (editor: Editor): SlashCommandGroup[] => {
   // Group 3: Insert menu items — use the Insert menu config as the source of truth
   // This respects the integrator's customization and includes premium plugins
   const insertMenuStr = getInsertMenuItems(editor);
-  const insertGroups = parseCommandString(editor, insertMenuStr);
-  for (const group of insertGroups) {
-    const filteredItems = Arr.filter(group.items, (item) => !addedNames.has(item.text));
-    if (filteredItems.length > 0) {
-      groups.push({ items: filteredItems });
+  const insertSegments = insertMenuStr.split('|').map((s) => s.trim());
+  for (const segment of insertSegments) {
+    if (Strings.isEmpty(segment)) {
+      continue;
+    }
+    const names = segment.split(/\s+/).filter((n) => Strings.isNotEmpty(n));
+    const items: SlashCommandItem[] = [];
+    for (const name of names) {
+      if (addedNames.has(name) || addedNames.has(nameAliases[name] ?? '')) {
+        continue;
+      }
+      const item = resolveItemFromRegistry(editor, name);
+      if (item) {
+        items.push(item);
+        addedNames.add(name);
+      }
+    }
+    if (items.length > 0) {
+      groups.push({ items });
     }
   }
 
