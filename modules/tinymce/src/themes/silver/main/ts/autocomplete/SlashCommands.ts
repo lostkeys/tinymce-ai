@@ -143,18 +143,7 @@ const getAutoGroups = (editor: Editor): SlashCommandGroup[] => {
     groups.push({ items: blockFormats });
   }
 
-  // Group 2: Insert menu items — use the Insert menu config as the source of truth
-  // This respects the integrator's customization and includes premium plugins
-  const insertMenuStr = getInsertMenuItems(editor);
-  const insertGroups = parseCommandString(editor, insertMenuStr);
-  for (const group of insertGroups) {
-    const filteredItems = Arr.filter(group.items, (item) => !addedNames.has(item.text));
-    if (filteredItems.length > 0) {
-      groups.push({ items: filteredItems });
-    }
-  }
-
-  // Group 3: Toolbar-only buttons not in menu items (e.g. bullist, numlist)
+  // Group 2: Toolbar-only list buttons (bullist, numlist) — placed after block formats
   const allItems = editor.ui.registry.getAll();
   const buttonItems: SlashCommandItem[] = [];
   for (const [ name, button ] of Object.entries(allItems.buttons)) {
@@ -172,6 +161,17 @@ const getAutoGroups = (editor: Editor): SlashCommandGroup[] => {
   }
   if (buttonItems.length > 0) {
     groups.push({ items: buttonItems });
+  }
+
+  // Group 3: Insert menu items — use the Insert menu config as the source of truth
+  // This respects the integrator's customization and includes premium plugins
+  const insertMenuStr = getInsertMenuItems(editor);
+  const insertGroups = parseCommandString(editor, insertMenuStr);
+  for (const group of insertGroups) {
+    const filteredItems = Arr.filter(group.items, (item) => !addedNames.has(item.text));
+    if (filteredItems.length > 0) {
+      groups.push({ items: filteredItems });
+    }
   }
 
   return groups;
