@@ -56,6 +56,24 @@ describe('browser.tinymce.core.content.PlaceholderNewlineTest', () => {
       assertPlaceholderHidden(editor);
     });
 
+    it('should show placeholder on empty line with carried-forward formatting', () => {
+      const editor = hook.editor();
+      // Simulates pressing Enter after bold text — TinyMCE wraps the bogus br in <strong>
+      editor.setContent('<p><strong>bold text</strong></p><p><strong><br data-mce-bogus="1"></strong></p>', { format: 'raw' });
+      TinySelections.setCursor(editor, [ 1, 0 ], 0);
+      editor.nodeChanged();
+      assertPlaceholderShown(editor);
+    });
+
+    it('should show placeholder on empty line with format caret span', () => {
+      const editor = hook.editor();
+      // Format caret pattern used by TinyMCE when carrying formatting
+      editor.setContent('<p>text</p><p><span data-mce-bogus="1" data-mce-type="format-caret"><strong></strong></span><br data-mce-bogus="1"></p>', { format: 'raw' });
+      TinySelections.setCursor(editor, [ 1 ], 0);
+      editor.nodeChanged();
+      assertPlaceholderShown(editor);
+    });
+
     it('should not show placeholder on formatted elements like headings', () => {
       const editor = hook.editor();
       editor.setContent('<h1><br data-mce-bogus="1"></h1>', { format: 'raw' });
