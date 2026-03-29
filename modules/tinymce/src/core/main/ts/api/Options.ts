@@ -985,6 +985,11 @@ const register = (editor: Editor): void => {
     default: ''
   });
 
+  registerOption('placeholder_newline_commands', {
+    processor: 'string',
+    default: ''
+  });
+
   registerOption('lists_indent_on_tab', {
     processor: 'boolean',
     default: true
@@ -1044,6 +1049,7 @@ const getObjectResizing = option('object_resizing');
 const getResizeImgProportional = option('resize_img_proportional');
 const getPlaceholder = option('placeholder');
 const getPlaceholderNewline = option('placeholder_newline');
+const getPlaceholderNewlineCommands = option('placeholder_newline_commands');
 const getEventRoot = option('event_root');
 const getServiceMessage = option('service_message');
 const getTheme = option('theme');
@@ -1169,6 +1175,7 @@ export {
   getResizeImgProportional,
   getPlaceholder,
   getPlaceholderNewline,
+  getPlaceholderNewlineCommands,
   getEventRoot,
   getServiceMessage,
   getTheme,

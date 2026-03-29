@@ -7,6 +7,7 @@ import ThemeManager, { type RenderResult, type Theme } from 'tinymce/core/api/Th
 
 import NotificationManagerImpl from './alien/NotificationManagerImpl';
 import * as Options from './api/Options';
+import * as SlashCommands from './autocomplete/SlashCommands';
 import { Autocompleter } from './Autocompleter';
 import * as ScrollingContext from './modes/ScrollingContext';
 import * as Render from './Render';
@@ -64,6 +65,7 @@ export default (): void => {
     };
 
     Autocompleter.register(editor, popups.backstage.shared);
+    SlashCommands.setup(editor);
 
     const windowMgr = WindowManager.setup({
       editor,
