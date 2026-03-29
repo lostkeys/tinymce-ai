@@ -281,3 +281,4 @@ These are guardrails for the AI agent:
 - PRs must pass CI (build, lint, tests) before review
 - Keep PRs focused on a single issue — don't bundle unrelated changes
 - **Always branch from a clean `main`** — stash or commit local changes before creating a new branch to avoid leaking unrelated changes into the PR
+- **Edge Cases Investigated checkboxes must be ticked** — if you investigated an edge case, mark it `[x]` not `[ ]`. Unticked checkboxes show up as non-actioned tasks in GitHub's issue/PR tracking
