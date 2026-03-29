@@ -203,16 +203,33 @@ describe('browser.tinymce.core.content.PlaceholderNewlineTest', () => {
       base_url: '/project/tinymce/js/tinymce'
     }, [], true);
 
-    it('should show placeholder inside editable region', () => {
+    it('should show placeholder on empty editable div container', () => {
+      const editor = hook.editor();
+      // The <p> wrapper gets removed by TinyMCE, leaving just a bogus <br> in the editable div
+      editor.setContent('<h1>Title</h1><div class="mceEditable"><br data-mce-bogus="1"></div>', { format: 'raw' });
+      TinySelections.setCursor(editor, [ 1 ], 0);
+      editor.nodeChanged();
+      assertPlaceholderShown(editor);
+      const el = getPlaceholderEl(editor);
+      assert.equal(el?.tagName, 'DIV', 'Placeholder should be on the editable div itself');
+    });
+
+    it('should show placeholder on empty editable section container', () => {
+      const editor = hook.editor();
+      editor.setContent('<h1>Title</h1><section class="mceEditable"><br data-mce-bogus="1"></section>', { format: 'raw' });
+      TinySelections.setCursor(editor, [ 1 ], 0);
+      editor.nodeChanged();
+      assertPlaceholderShown(editor);
+      const el = getPlaceholderEl(editor);
+      assert.equal(el?.tagName, 'SECTION', 'Placeholder should be on the editable section');
+    });
+
+    it('should show placeholder inside editable region with p wrapper', () => {
       const editor = hook.editor();
       editor.setContent('<h1>Title</h1><div class="mceEditable"><p><br data-mce-bogus="1"></p></div>', { format: 'raw' });
-      const editableDiv = editor.getBody().querySelector('.mceEditable');
-      const emptyP = editableDiv?.querySelector('p');
-      if (emptyP) {
-        TinySelections.setCursor(editor, [ 1, 0 ], 0);
-        editor.nodeChanged();
-        assertPlaceholderShown(editor);
-      }
+      TinySelections.setCursor(editor, [ 1, 0 ], 0);
+      editor.nodeChanged();
+      assertPlaceholderShown(editor);
     });
 
     it('should not show placeholder on non-editable content', () => {

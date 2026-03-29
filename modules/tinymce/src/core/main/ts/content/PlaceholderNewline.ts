@@ -68,6 +68,14 @@ const getCaretBlock = (editor: Editor): Element | null => {
   // when editable_root: false is configured
   const root = getEditableRoot(dom, node) ?? body;
 
+  // If the editable root itself is empty (e.g. <div class="mceEditable"><br></div>),
+  // treat the root as the placeholder target. This handles non-editable root scenarios
+  // where the <p> wrapper gets removed, leaving just a bogus <br> in any container type
+  // (div, td, li, section, article, etc.)
+  if (root !== body && isEmptyBlock(editor, root)) {
+    return root;
+  }
+
   // Walk up to find the direct child of the editable root (the block-level element)
   let block: Element | null = null;
   if (node === root) {

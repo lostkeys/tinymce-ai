@@ -5,30 +5,14 @@
 @placeholder-newline-color: @text-color-muted;
 
 .mce-content-body .mce-placeholder-newline {
-  position: relative;
-
   &:not(.mce-visualblocks)::before {
     color: @placeholder-newline-color;
     content: attr(data-mce-placeholder-newline);
     pointer-events: none;
-    position: absolute;
 
     @media (forced-colors: active) {
       color: highlight;
       filter: brightness(30%);
-      z-index: -1;
     }
-  }
-}
-
-.mce-content-body:not([dir=rtl]) .mce-placeholder-newline {
-  &::before {
-    left: 1px;
-  }
-}
-
-.mce-content-body[dir=rtl] .mce-placeholder-newline {
-  &::before {
-    right: 1px;
   }
 }
