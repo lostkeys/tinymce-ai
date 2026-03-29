@@ -87,7 +87,8 @@ export default (): void => {
     importcss_append: true,
     // init_content_sync: true,
     placeholder_newline: 'Type \'/\' for commands',
-    placeholder_newline_commands: 'h1 h2 h3 | bullist numlist | blockquote hr table image',
+    //placeholder_newline_commands: 'h1 h2 h3 | bullist numlist | blockquote hr table image',
+    placeholder_newline_commands: 'auto',
     height: 400,
     image_advtab: true,
     file_picker_callback: (callback, _value, meta) => {

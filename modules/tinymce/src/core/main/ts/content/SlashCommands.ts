@@ -112,43 +112,99 @@ const parseCommandString = (editor: Editor, commandStr: string): SlashCommandGro
   return groups;
 };
 
+// Menu items to exclude from auto mode — actions that don't make sense
+// as slash commands (editing, navigation, settings, meta, inline formatting,
+// table operations that only work inside a table context)
+const autoExcludeItems = new Set([
+  // Editing / clipboard
+  'undo', 'redo', 'cut', 'copy', 'paste', 'pastetext', 'selectall',
+  // Meta / settings / tools
+  'searchreplace', 'print', 'preview', 'fullscreen', 'code', 'help',
+  'newdocument', 'restoredraft', 'wordcount', 'a11ycheck',
+  'visualaid', 'visualchars', 'visualblocks',
+  'spellchecker', 'spellcheckerlanguage',
+  // Inline formatting (not block-level actions)
+  'bold', 'italic', 'underline', 'strikethrough', 'superscript', 'subscript',
+  'codeformat', 'removeformat',
+  'forecolor', 'backcolor', 'language',
+  'styles', 'blocks', 'fontfamily', 'fontsize', 'align', 'lineheight',
+  // Link operations (context-dependent)
+  'openlink', 'unlink',
+  // List properties (context-dependent, not list creation)
+  'listprops',
+  // Table destruction (context-dependent)
+  'deletetable',
+  // Low-value insert items
+  'nonbreaking'
+]);
+
+// Prefix patterns to exclude — table operations that only work inside a table
+const autoExcludePrefixes = [ 'table' ];
+
+// Table items to explicitly INCLUDE despite the prefix exclusion
+const autoIncludeOverrides = new Set([ 'inserttabledialog' ]);
+
 const getAutoGroups = (editor: Editor): SlashCommandGroup[] => {
   const groups: SlashCommandGroup[] = [];
+  const addedNames = new Set<string>();
 
-  // Block formats group
+  // Group 1: Block formats from the formatter registry
   const blockFormats: SlashCommandItem[] = [];
-  for (const name of [ 'h1', 'h2', 'h3', 'h4', 'h5', 'h6' ]) {
-    const item = resolveItemFromRegistry(editor, name);
-    if (item) {
-      blockFormats.push(item);
+  const blockFormatKeys = Object.keys(blockFormatNames);
+  for (const name of blockFormatKeys) {
+    if (editor.formatter.has(name)) {
+      const item = resolveItemFromRegistry(editor, name);
+      if (item) {
+        blockFormats.push(item);
+        addedNames.add(name);
+      }
     }
   }
   if (blockFormats.length > 0) {
     groups.push({ items: blockFormats });
   }
 
-  // List items group
-  const listItems: SlashCommandItem[] = [];
-  for (const name of [ 'bullist', 'numlist' ]) {
-    const item = resolveItemFromRegistry(editor, name);
-    if (item) {
-      listItems.push(item);
-    }
-  }
-  if (listItems.length > 0) {
-    groups.push({ items: listItems });
-  }
-
-  // Insert items group — scrape from registered menu items
+  // Group 2: Insert menu items — scrape all registered menu items with onAction
+  const allItems = editor.ui.registry.getAll();
   const insertItems: SlashCommandItem[] = [];
-  for (const name of [ 'blockquote', 'pre', 'hr', 'table', 'image', 'link', 'codesample' ]) {
-    const item = resolveItemFromRegistry(editor, name);
-    if (item) {
-      insertItems.push(item);
+  for (const [ name, menuItem ] of Object.entries(allItems.menuItems)) {
+    const isExcludedByPrefix = !autoIncludeOverrides.has(name) &&
+      Arr.exists(autoExcludePrefixes, (prefix) => name.startsWith(prefix));
+    if (addedNames.has(name) || autoExcludeItems.has(name) || isExcludedByPrefix) {
+      continue;
+    }
+    if (Type.isFunction((menuItem as any).onAction)) {
+      const text = (menuItem as any).text ?? name;
+      const icon = (menuItem as any).icon ?? knownIcons[name];
+      insertItems.push({
+        text,
+        icon,
+        onAction: () => (menuItem as any).onAction({ isEnabled: Fun.always, setEnabled: Fun.noop })
+      });
+      addedNames.add(name);
     }
   }
   if (insertItems.length > 0) {
     groups.push({ items: insertItems });
+  }
+
+  // Group 3: Toolbar-only buttons not already covered (e.g. bullist, numlist)
+  const buttonItems: SlashCommandItem[] = [];
+  for (const [ name, button ] of Object.entries(allItems.buttons)) {
+    if (addedNames.has(name) || autoExcludeItems.has(name)) {
+      continue;
+    }
+    if (Type.isFunction((button as any).onAction) && knownText[name]) {
+      buttonItems.push({
+        text: knownText[name],
+        icon: (button as any).icon ?? knownIcons[name],
+        onAction: () => (button as any).onAction({ isEnabled: Fun.always, setEnabled: Fun.noop, isActive: Fun.never, setActive: Fun.noop })
+      });
+      addedNames.add(name);
+    }
+  }
+  if (buttonItems.length > 0) {
+    groups.push({ items: buttonItems });
   }
 
   return groups;
