@@ -71,6 +71,7 @@ export default (): void => {
     selector: 'textarea',
     license_key: 'gpl',
     // rtl_ui: true,
+    // directionality: 'rtl',
     link_list: [
       { title: 'My page 1', value: 'http://www.tinymce.com' },
       { title: 'My page 2', value: 'http://www.moxiecode.com' }

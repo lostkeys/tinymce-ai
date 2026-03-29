@@ -19,24 +19,13 @@ const clearPlaceholder = (editor: Editor): void => {
   }
 };
 
-const isEmptyBlock = (node: Node): boolean => {
+const isEmptyBlock = (editor: Editor, node: Node): boolean => {
   if (node.nodeType !== 1) {
     return false;
   }
-  const el = node as Element;
-  const children = el.childNodes;
-
-  // Empty element or only contains a bogus <br>
-  if (children.length === 0) {
-    return true;
-  }
-  if (children.length === 1) {
-    const child = children[0];
-    if (child.nodeName === 'BR' && (child as Element).getAttribute('data-mce-bogus') === '1') {
-      return true;
-    }
-  }
-  return false;
+  // Use TinyMCE's built-in isEmpty which handles bogus <br>, format carets,
+  // empty formatting spans (<strong></strong>), and zero-width characters
+  return editor.dom.isEmpty(node, undefined, { skipBogus: false, includeZwsp: true });
 };
 
 const isUnformattedBlock = (el: Element, forcedRootBlock: string): boolean => {
@@ -91,7 +80,7 @@ const getCaretBlock = (editor: Editor): Element | null => {
     }
   }
 
-  if (!block || !isEmptyBlock(block) || !isUnformattedBlock(block, forcedRootBlock)) {
+  if (!block || !isEmptyBlock(editor, block) || !isUnformattedBlock(block, forcedRootBlock)) {
     return null;
   }
 
