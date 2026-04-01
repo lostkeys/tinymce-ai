@@ -8,10 +8,20 @@
 <body>
   <main>
     <h1>fixed_toolbar_container Demo Page</h1>
-    <br />
-    <div id="toolbar"></div>
-    <br/>
-    <div id="editor">fixed_toolbar_container demo</div>
+
+    <h2>Inline mode (existing)</h2>
+    <div id="toolbar-inline" style="border: 1px solid #ccc; padding: 4px; margin-bottom: 8px;"></div>
+    <div id="editor-inline">fixed_toolbar_container inline demo</div>
+
+    <hr style="margin: 32px 0;" />
+
+    <h2>Iframe mode (new)</h2>
+    <p>The toolbar is rendered in the container below. Other content lives between the toolbar and the editor.</p>
+    <div id="toolbar-iframe" style="border: 1px solid #ccc; padding: 4px; margin-bottom: 8px;"></div>
+    <p style="background: #f0f4ff; padding: 12px; border-radius: 4px;">
+      📌 This content lives between the toolbar and the editor — demonstrating layout freedom.
+    </p>
+    <textarea id="editor-iframe">fixed_toolbar_container iframe demo</textarea>
     <br/>
     <script src="../../../../js/tinymce/tinymce.js"></script>
     <script src="../../../../scratch/demos/core/demo.js"></script>

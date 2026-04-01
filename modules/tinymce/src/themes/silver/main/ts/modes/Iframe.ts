@@ -107,6 +107,20 @@ const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUi
   const uiRoot = SugarShadowDom.getContentContainer(SugarShadowDom.getRootNode(eTargetNode));
 
   Attachment.attachSystemAfter(eTargetNode, mainUi.mothership);
+
+  // When fixed_toolbar_container is used in iframe mode, attach the header (toolbar + menubar)
+  // mothership to the fixed container element so it renders there instead of above the iframe.
+  mainUi.headerUi.each((headerUi) => {
+    Options.fixedContainerTarget(editor).each((fixedContainer) => {
+      Attachment.attachSystem(fixedContainer, headerUi.mothership);
+    });
+    // Detach the header mothership when the editor is destroyed, since it's not inside
+    // editor.getContainer() and won't be cleaned up by the normal DOM.remove() path.
+    editor.on('remove', () => {
+      Attachment.detachSystem(headerUi.mothership);
+    });
+  });
+
   attachUiMotherships(editor, uiRoot, uiRefs);
 
   editor.on('PostRender', () => {
@@ -133,7 +147,7 @@ const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUi
     lastToolbarWidth.set(editor.getWin().innerWidth);
 
     OuterContainer.setMenubar(
-      outerContainer,
+      mainUi.headerUi.map((h) => h.outerContainer).getOr(outerContainer),
       identifyMenus(editor, rawUiConfig)
     );
 

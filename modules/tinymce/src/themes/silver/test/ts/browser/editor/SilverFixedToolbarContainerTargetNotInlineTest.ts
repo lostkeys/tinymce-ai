@@ -1,7 +1,7 @@
-﻿import { Assertions } from '@ephox/agar';
+﻿import { UiFinder, Waiter } from '@ephox/agar';
 import { after, before, describe, it } from '@ephox/bedrock-client';
 import { Insert, Remove, SugarBody, SugarElement } from '@ephox/sugar';
-import { TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
+import { TinyHooks } from '@ephox/wrap-mcagar';
 
 import type Editor from 'tinymce/core/api/Editor';
 
@@ -23,12 +23,13 @@ describe('browser.tinymce.themes.silver.editor.SilverFixedToolbarContainerTarget
     base_url: '/project/tinymce/js/tinymce'
   }, []);
 
-  it('Check fixed_toolbar_container_target setting is ignored when not an inline editor', async () => {
+  it('Check fixed_toolbar_container_target renders toolbar in the target container in iframe mode', async () => {
     const editor = hook.editor();
     editor.setContent('fixed_toolbar_container_target test');
     editor.focus();
 
-    await TinyUiActions.pWaitForUi(editor, '.tox-editor-header');
-    Assertions.assertHtml('Check that the inline toolbar is still empty', '', toolbar.dom.innerHTML);
+    await Waiter.pTryUntil('Wait for toolbar header in target container', () =>
+      UiFinder.findIn(toolbar, '.tox-editor-header').getOrDie()
+    );
   });
 });

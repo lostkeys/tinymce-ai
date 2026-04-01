@@ -396,11 +396,6 @@ const isToolbarLocationBottom = (editor: Editor): boolean =>
   getToolbarLocation(editor) === ToolbarLocation.bottom;
 
 const fixedContainerTarget = (editor: Editor): Optional<SugarElement> => {
-  if (!editor.inline) {
-    // fixed_toolbar_container(_target) is only available in inline mode
-    return Optional.none();
-  }
-
   const selector = fixedContainerSelector(editor) ?? '';
   if (selector.length > 0) {
     // If we have a valid selector
@@ -417,7 +412,7 @@ const fixedContainerTarget = (editor: Editor): Optional<SugarElement> => {
 };
 
 const useFixedContainer = (editor: Editor): boolean =>
-  editor.inline && fixedContainerTarget(editor).isSome();
+  fixedContainerTarget(editor).isSome();
 
 const getUiContainer = (editor: Editor): SugarElement<HTMLElement | ShadowRoot> => {
   const fixedContainer = fixedContainerTarget(editor);
@@ -471,6 +466,7 @@ export {
   isToolbarPersist,
   getMultipleToolbarsOption,
   getUiContainer,
+  fixedContainerTarget,
   useFixedContainer,
   isSplitUiMode,
   getToolbarMode,
