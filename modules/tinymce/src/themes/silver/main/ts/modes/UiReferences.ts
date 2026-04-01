@@ -1,5 +1,5 @@
 import type { AlloyComponent, Gui } from '@ephox/alloy';
-import { type Optional, Singleton } from '@ephox/katamari';
+import { Optional, Singleton } from '@ephox/katamari';
 import { Compare } from '@ephox/sugar';
 
 export interface SinkAndMothership {
@@ -7,9 +7,17 @@ export interface SinkAndMothership {
   readonly mothership: Gui.GuiSystem;
 }
 
+export interface HeaderUi {
+  readonly mothership: Gui.GuiSystem;
+  readonly outerContainer: AlloyComponent;
+}
+
 export interface MainUi {
   readonly mothership: Gui.GuiSystem;
   readonly outerContainer: AlloyComponent;
+  // When fixed_toolbar_container is used in iframe mode, the header (toolbar + menubar)
+  // is rendered in a separate mothership attached to the fixed container.
+  readonly headerUi: Optional<HeaderUi>;
 }
 
 export interface ReadyUiReferences {
@@ -37,11 +45,12 @@ export interface LazyUiReferences {
 export const LazyUiReferences = (): LazyUiReferences => {
   const dialogUi = Singleton.value<SinkAndMothership>();
   const popupUi = Singleton.value<SinkAndMothership>();
-  const mainUi = Singleton.value<{ mothership: Gui.GuiSystem; outerContainer: AlloyComponent }>();
+  const mainUi = Singleton.value<MainUi>();
 
   const lazyGetInOuterOrDie = <A>(label: string, f: (oc: AlloyComponent) => Optional<A>): () => A =>
     () => mainUi.get().bind(
-      (oc) => f(oc.outerContainer)
+      // Check headerUi first (toolbar/menubar live there when fixed_toolbar_container is used in iframe mode)
+      (ui) => ui.headerUi.bind((h) => f(h.outerContainer)).orThunk(() => f(ui.outerContainer))
     ).getOrDie(
       `Could not find ${label} element in OuterContainer`
     );
@@ -50,13 +59,20 @@ export const LazyUiReferences = (): LazyUiReferences => {
   const getUiMotherships = () => {
     const optDialogMothership = dialogUi.get().map((ui) => ui.mothership);
     const optPopupMothership = popupUi.get().map((ui) => ui.mothership);
+    // Include the header mothership when fixed_toolbar_container is used in iframe mode
+    const optHeaderMothership = mainUi.get().bind((ui) => ui.headerUi).map((h) => h.mothership);
 
-    return optDialogMothership.fold(
+    const base = optDialogMothership.fold(
       () => optPopupMothership.toArray(),
       (dm) => optPopupMothership.fold(
         () => [ dm ],
         (pm) => Compare.eq(dm.element, pm.element) ? [ dm ] : [ dm, pm ]
       )
+    );
+
+    return optHeaderMothership.fold(
+      () => base,
+      (hm) => [ hm, ...base ]
     );
   };
 

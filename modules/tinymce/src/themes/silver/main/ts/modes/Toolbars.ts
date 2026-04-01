@@ -11,7 +11,8 @@ import type { ReadyUiReferences } from './UiReferences';
 
 // Set toolbar(s) depending on if multiple toolbars is configured or not
 const setToolbar = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUiConfig, backstage: UiFactoryBackstage): void => {
-  const outerContainer = uiRefs.mainUi.outerContainer;
+  // When fixed_toolbar_container is used in iframe mode, the toolbar lives in headerUi
+  const outerContainer = uiRefs.mainUi.headerUi.map((h) => h.outerContainer).getOr(uiRefs.mainUi.outerContainer);
   const toolbarConfig = rawUiConfig.toolbar;
   const toolbarButtonsConfig = rawUiConfig.buttons;
 

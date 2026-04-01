@@ -17,7 +17,7 @@ import * as Deprecations from './Deprecations';
 import * as DomEvents from './Events';
 import * as Iframe from './modes/Iframe';
 import * as Inline from './modes/Inline';
-import { LazyUiReferences, type ReadyUiReferences, type SinkAndMothership } from './modes/UiReferences';
+import { type HeaderUi, LazyUiReferences, type ReadyUiReferences, type SinkAndMothership } from './modes/UiReferences';
 import * as ContextToolbar from './ui/context/ContextToolbar';
 import * as FormatControls from './ui/core/FormatControls';
 import OuterContainer from './ui/general/OuterContainer';
@@ -110,8 +110,11 @@ const setup = (editor: Editor, setupForTheme: ThemeRenderSetup): RenderInfo => {
   });
 
   const lazyHeader = () => lazyUiRefs.mainUi.get()
-    .map((ui) => ui.outerContainer)
-    .bind(OuterContainer.getHeader);
+    .bind((ui) =>
+      // When fixed_toolbar_container is used in iframe mode, the header lives in headerUi
+      ui.headerUi.bind((h) => OuterContainer.getHeader(h.outerContainer))
+        .orThunk(() => OuterContainer.getHeader(ui.outerContainer))
+    );
 
   const lazyDialogSinkResult = () => Result.fromOption(
     lazyUiRefs.dialogUi.get().map((ui) => ui.sink),
@@ -380,12 +383,18 @@ const setup = (editor: Editor, setupForTheme: ThemeRenderSetup): RenderInfo => {
         renderStatusbar(editor, backstages.popup.shared.providers)
       ) : Optional.none<AlloySpec>();
 
+    // When fixed_toolbar_container is set in iframe mode, the header (menubar + toolbar)
+    // is rendered in a separate outerContainer attached to the fixed container element.
+    // The main outerContainer holds only the socket, sidebar, and statusbar.
+    const useFixedContainerInIframeMode = Options.useFixedContainer(editor) && !isInline;
+
     // We need the statusbar to be separate to everything else so resizing works properly
     const editorComponents = Arr.flatten<AlloySpec>([
-      isToolbarBottom ? [ ] : [ partHeader ],
+      // Exclude header from main outerContainer if it goes in the fixed container
+      isToolbarBottom || useFixedContainerInIframeMode ? [ ] : [ partHeader ],
       // Inline mode does not have a socket/sidebar
       isInline ? [ ] : [ sidebarContainer ],
-      isToolbarBottom ? [ partHeader ] : [ ]
+      isToolbarBottom && !useFixedContainerInIframeMode ? [ partHeader ] : [ ]
     ]);
 
     const editorContainer = OuterContainer.parts.editorContainer({
@@ -443,7 +452,37 @@ const setup = (editor: Editor, setupForTheme: ThemeRenderSetup): RenderInfo => {
 
     lazyMothership.set(mothership);
 
-    return { mothership, outerContainer };
+    // Build a separate header outerContainer for fixed container iframe mode
+    const headerUi: Optional<HeaderUi> = useFixedContainerInIframeMode ? (() => {
+      const headerOuterContainer = GuiFactory.build(
+        OuterContainer.sketch({
+          dom: {
+            tag: 'div',
+            classes: [ 'tox', 'tox-tinymce', 'tox-tinymce--toolbar-only' ].concat(deviceClasses),
+            styles: { visibility: 'hidden' }
+          },
+          components: [
+            OuterContainer.parts.editorContainer({
+              components: [ partHeader ]
+            })
+          ],
+          behaviours: Behaviour.derive([
+            UiState.toggleOnReceive(() => backstages.popup.shared.providers.checkUiComponentContext('any')),
+            Disabling.config({
+              disableClass: 'tox-tinymce--disabled'
+            }),
+            Keying.config({
+              mode: 'cyclic',
+              selector: '.tox-menubar, .tox-toolbar, .tox-toolbar__primary, .tox-toolbar__overflow--open'
+            })
+          ])
+        })
+      );
+      const headerMothership = Gui.takeover(headerOuterContainer);
+      return Optional.some({ mothership: headerMothership, outerContainer: headerOuterContainer });
+    })() : Optional.none();
+
+    return { mothership, outerContainer, headerUi };
   };
 
   const setEditorSize = (outerContainer: AlloyComponent) => {
@@ -517,7 +556,9 @@ const setup = (editor: Editor, setupForTheme: ThemeRenderSetup): RenderInfo => {
       views
     };
 
-    setupShortcutsAndCommands(mainUi.outerContainer);
+    // When fixed_toolbar_container is used in iframe mode, toolbar/menubar shortcuts
+    // must target the headerUi.outerContainer where those components live
+    setupShortcutsAndCommands(mainUi.headerUi.map((h) => h.outerContainer).getOr(mainUi.outerContainer));
     DomEvents.setup(editor, mainUi.mothership, uiMotherships);
 
     // This backstage needs to kept in sync with the one passed to the Header part.
