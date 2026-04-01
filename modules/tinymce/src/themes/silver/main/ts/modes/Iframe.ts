@@ -191,7 +191,7 @@ const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUi
       if (Type.isNull(OuterContainer.whichView(outerContainer))) {
         editor.focus();
         editor.nodeChanged();
-        OuterContainer.refreshToolbar(outerContainer);
+        OuterContainer.refreshToolbar(toolbarContainer);
       }
 
       Events.fireToggleView(editor);
@@ -201,14 +201,23 @@ const render = (editor: Editor, uiRefs: ReadyUiReferences, rawUiConfig: RenderUi
 
   const toolbarMode = Options.getToolbarMode(editor);
 
+  // When fixed_toolbar_container is used, the toolbar lives in headerUi — refresh that.
+  // Also measure the toolbar container's width (not the iframe width) since the toolbar
+  // reflows based on its own container width, which may differ from the editor iframe width.
+  const toolbarContainer = mainUi.headerUi.map((h) => h.outerContainer).getOr(outerContainer);
+  const getToolbarWidth = () => mainUi.headerUi.fold(
+    () => editor.getWin().innerWidth,
+    (h) => h.outerContainer.element.dom.offsetWidth
+  );
+
   const refreshDrawer = () => {
-    OuterContainer.refreshToolbar(uiRefs.mainUi.outerContainer);
+    OuterContainer.refreshToolbar(toolbarContainer);
   };
 
   if (toolbarMode === Options.ToolbarMode.sliding || toolbarMode === Options.ToolbarMode.floating) {
     editor.on('ResizeWindow ResizeEditor ResizeContent', () => {
       // Check if the width has changed, if so then refresh the toolbar drawer. We don't care if height changes.
-      const width = editor.getWin().innerWidth;
+      const width = getToolbarWidth();
       if (width !== lastToolbarWidth.get()) {
         refreshDrawer();
         lastToolbarWidth.set(width);

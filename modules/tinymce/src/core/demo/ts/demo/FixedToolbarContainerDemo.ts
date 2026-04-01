@@ -18,7 +18,8 @@ export default (): void => {
     selector: '#editor-iframe',
     license_key: 'gpl',
     plugins: 'lists link image table wordcount',
-    toolbar: 'bold italic underline | bullist numlist | link image table',
+    toolbar: 'undo redo styles fontsize fontfamily bold italic underline forecolor backcolor | bullist numlist | link image table | wordcount code help',
     fixed_toolbar_container: '#toolbar-iframe',
+    toolbar_mode: "floating"
   });
 };
